@@ -296,12 +296,10 @@ const POKO_DB = {
     let authEmail = usernameOrContact;
 
     if (!isEmail && !isPhone) {
-      // C'est un pseudo — chercher l'email stocké
-      const { data: p } = await _supabase.from('profiles').select('email').eq('username', usernameOrContact).maybeSingle();
-      if (!p) return { ok:false, msg:'Compte introuvable.' };
-      const stored = p.email;
-      const storedIsPhone = /^\+242/.test(stored);
-      authEmail = storedIsPhone ? stored.replace(/\s/g,'').replace('+','') + '@poko.app' : stored;
+      // C'est un pseudo — résolution via RPC (bypass RLS)
+      const { data: resolved } = await _supabase.rpc('get_login_email', { p_identifier: usernameOrContact });
+      if (!resolved) return { ok:false, msg:'Compte introuvable.' };
+      authEmail = resolved;
     } else if (isPhone) {
       authEmail = usernameOrContact.replace(/\s/g,'').replace('+','') + '@poko.app';
     }
