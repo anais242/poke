@@ -1,0 +1,10 @@
+# Documentation interne
+Context/
+
+# Fichiers de prévisualisation
+preview_visuel.html
+
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini

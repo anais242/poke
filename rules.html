@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKO — Règles</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#d4a017; --gold-light:#f0c040; --red:#c0392b; --white:#f5f0e8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: radial-gradient(ellipse at center, #1e6b3a 0%, #0d3018 70%);
+    min-height: 100vh;
+    font-family: 'Space Mono', monospace;
+    color: var(--white);
+  }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image: repeating-linear-gradient(45deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+    pointer-events:none; z-index:0;
+  }
+  .page {
+    position: relative; z-index: 1;
+    max-width: 640px; margin: 0 auto; padding: 40px 24px;
+    animation: fadeIn .5s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+  .page-header { display: flex; align-items: center; gap: 16px; margin-bottom: 40px; }
+  .back-btn {
+    width: 36px; height: 36px; border: 1px solid rgba(212,160,23,.4);
+    background: transparent; color: var(--gold); border-radius: 2px;
+    cursor: pointer; font-size: 16px; transition: all .2s;
+    display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink:0;
+  }
+  .back-btn:hover { background: rgba(212,160,23,.1); }
+  .page-title { font-family: 'Playfair Display', serif; font-size: 28px; color: var(--gold); letter-spacing: 3px; }
+
+  .rule-section { margin-bottom: 28px; }
+  .rule-title {
+    font-size: 10px; letter-spacing: 3px; color: var(--gold);
+    text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rule-title::after { content:''; flex:1; height:1px; background: linear-gradient(90deg, rgba(212,160,23,.3), transparent); }
+
+  .rule-card {
+    background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.07);
+    border-radius: 5px; padding: 18px 20px;
+  }
+  .rule-card p { font-size: 11px; line-height: 2.1; color: rgba(245,240,232,.75); margin-bottom: 6px; }
+  .rule-card p:last-child { margin-bottom: 0; }
+  .hl { color: var(--gold-light); font-weight: 700; }
+  .red { color: #ff7a7a; font-weight: 700; }
+
+  /* Stage cards */
+  .stages { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .stage-card {
+    flex: 1; min-width: 120px;
+    background: rgba(0,0,0,.3); border: 1px solid rgba(212,160,23,.2);
+    border-radius: 4px; padding: 14px; text-align: center;
+  }
+  .stage-num { font-family: 'Playfair Display', serif; font-size: 28px; color: var(--gold); line-height: 1; }
+  .stage-label { font-size: 9px; letter-spacing: 2px; color: rgba(245,240,232,.4); margin: 4px 0 8px; }
+  .stage-desc { font-size: 10px; color: rgba(245,240,232,.65); line-height: 1.6; }
+
+  /* Action cards */
+  .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .action-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(0,0,0,.2); border-radius: 3px; padding: 12px 14px;
+    border-left: 3px solid transparent;
+  }
+  .action-item.lower { border-left-color: rgba(245,240,232,.2); }
+  .action-item.casse  { border-left-color: #ff7a7a; }
+  .action-item.nosuit { border-left-color: var(--gold); }
+  .action-tag { font-size: 8px; letter-spacing: 2px; font-weight: 700; white-space: nowrap; min-width: 70px; margin-top: 2px; }
+  .action-tag.lower { color: rgba(245,240,232,.4); }
+  .action-tag.casse  { color: #ff7a7a; }
+  .action-tag.nosuit { color: var(--gold); }
+  .action-text { font-size: 11px; line-height: 1.7; color: rgba(245,240,232,.7); }
+
+  .kin-box {
+    background: rgba(212,160,23,.08); border: 1px solid rgba(212,160,23,.3);
+    border-radius: 4px; padding: 16px 20px; margin-top: 10px;
+  }
+  .kin-title { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--gold); letter-spacing: 6px; margin-bottom: 10px; }
+  .kin-box p { font-size: 11px; line-height: 2; color: rgba(245,240,232,.7); }
+
+  .btn {
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    color: #1a1a1a; border: none; padding: 14px 48px;
+    font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; cursor: pointer;
+    border-radius: 2px; transition: all .2s; text-decoration: none;
+    display: inline-block; margin-top: 30px;
+    box-shadow: 0 4px 15px rgba(212,160,23,.3);
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(212,160,23,.5); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <a href="index.html" class="back-btn">←</a>
+    <div class="page-title">Règles du POKO</div>
+  </div>
+
+  <!-- Objectif -->
+  <div class="rule-section">
+    <div class="rule-title">🎯 Objectif</div>
+    <div class="rule-card">
+      <p>Se débarrasser de toutes ses cartes en main <span class="hl">le plus rapidement possible</span>. Le premier à vider sa main remporte l'étape. Le vainqueur de la finale emporte la cagnotte.</p>
+    </div>
+  </div>
+
+  <!-- Mise en place -->
+  <div class="rule-section">
+    <div class="rule-title">🃏 Mise en place</div>
+    <div class="rule-card">
+      <p>Un jeu de <span class="hl">52 cartes</span>, 4 joueurs minimum.</p>
+      <p>Chaque joueur tire une carte. Celui avec la <span class="hl">carte la plus haute</span> est désigné premier joueur (tirage unique, une seule fois en début de partie).</p>
+      <p>On distribue <span class="hl">4 cartes par joueur</span>, une à la fois, dans le sens horaire en partant du premier joueur.</p>
+    </div>
+  </div>
+
+  <!-- Déroulement -->
+  <div class="rule-section">
+    <div class="rule-title">▶ Déroulement d'un tour</div>
+    <div class="rule-card">
+      <p>Le joueur qui a <span class="hl">la main</span> lance une carte — elle définit la couleur du tour. Le joueur suivant (sens horaire) doit jouer une carte de cette même couleur :</p>
+    </div>
+    <div class="actions" style="margin-top:10px;">
+      <div class="action-item lower">
+        <div class="action-tag lower">INFÉRIEURE</div>
+        <div class="action-text">La carte est inférieure — le tour <strong>continue</strong> au joueur suivant.</div>
+      </div>
+      <div class="action-item casse">
+        <div class="action-tag casse">CASSÉ !</div>
+        <div class="action-text">La carte est supérieure — le joueur dit <span class="red">CASSÉ</span> ! Le tour s'arrête immédiatement. Ce joueur prend la main pour le tour suivant. Les joueurs suivants ne jouent pas.</div>
+      </div>
+      <div class="action-item nosuit">
+        <div class="action-tag nosuit">PAS DE COULEUR</div>
+        <div class="action-text">Le joueur n'a pas la couleur demandée — il <span class="hl">ramasse la carte la plus haute</span> jouée dans ce tour. Le tour s'arrête. Le joueur qui avait lancé reprend la main.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KIN -->
+  <div class="rule-section">
+    <div class="rule-title">⚡ Le KIN</div>
+    <div class="kin-box">
+      <div class="kin-title">✦ KIN ✦</div>
+      <p>Si un joueur reçoit <span class="hl">4 cartes de la même couleur</span> lors de la distribution, il doit l'annoncer immédiatement après la distribution, sans montrer ses cartes.</p>
+      <p>Ce joueur <span class="hl">sort automatiquement en premier</span> de l'étape, quelle que soit sa position de parole.</p>
+      <p style="margin-top:8px;color:rgba(245,240,232,.45);font-size:10px;">Option configurable : KIN activé ou désactivé avant la partie.</p>
+    </div>
+  </div>
+
+  <!-- Étapes -->
+  <div class="rule-section">
+    <div class="rule-title">📋 Les étapes</div>
+    <div class="stages">
+      <div class="stage-card">
+        <div class="stage-num">1</div>
+        <div class="stage-label">ÉTAPE 1</div>
+        <div class="stage-desc">4 joueurs<br>Le dernier avec des cartes est éliminé.</div>
+      </div>
+      <div class="stage-card">
+        <div class="stage-num">2</div>
+        <div class="stage-label">ÉTAPE 2</div>
+        <div class="stage-desc">3 joueurs<br>Le dernier avec des cartes est éliminé.</div>
+      </div>
+      <div class="stage-card" style="border-color:rgba(212,160,23,.5);">
+        <div class="stage-num" style="color:var(--gold-light);">F</div>
+        <div class="stage-label">FINALE</div>
+        <div class="stage-desc">2 joueurs<br>Le premier à vider sa main <strong>gagne</strong>.</div>
+      </div>
+    </div>
+    <div class="rule-card" style="margin-top:12px;">
+      <p>L'ordre de jeu des étapes suivantes est déterminé par le <span class="hl">classement de l'étape précédente</span> — pas de nouveau tirage.</p>
+    </div>
+  </div>
+
+  <a href="index.html" class="btn">← RETOUR</a>
+
+</div>
+</body>
+</html>

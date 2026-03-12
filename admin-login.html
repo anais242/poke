@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKO — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--amber:#ffb300;--amber-dim:rgba(255,179,0,.15);--red:#ff3333;--green:#00ff88;--bg:#080808;--panel:#0f0f0f;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);font-family:'Share Tech Mono',monospace;color:var(--amber);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+
+/* Scanlines overlay */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:100;}
+/* Grid pattern */
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,179,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,179,0,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+
+.terminal{
+  position:relative;z-index:1;
+  width:420px;padding:0;
+  border:1px solid rgba(255,179,0,.3);
+  box-shadow:0 0 40px rgba(255,179,0,.1),inset 0 0 40px rgba(0,0,0,.5);
+  background:var(--panel);
+  animation:bootUp .8s ease;
+}
+@keyframes bootUp{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+.terminal-header{
+  background:rgba(255,179,0,.08);
+  border-bottom:1px solid rgba(255,179,0,.2);
+  padding:12px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.terminal-dots{display:flex;gap:6px;}
+.dot{width:10px;height:10px;border-radius:50%;}
+.dot.r{background:#ff3b30;} .dot.y{background:#ffb300;} .dot.g{background:#00cc44;}
+.terminal-title{font-size:10px;letter-spacing:3px;color:rgba(255,179,0,.5);}
+
+.terminal-body{padding:36px 36px 32px;}
+
+.sys-logo{
+  font-family:'Orbitron',monospace;font-size:30px;font-weight:900;
+  color:var(--amber);letter-spacing:8px;text-align:center;margin-bottom:4px;
+  text-shadow:0 0 20px rgba(255,179,0,.4);
+}
+.sys-sub{font-size:9px;letter-spacing:4px;color:rgba(255,179,0,.4);text-align:center;margin-bottom:28px;}
+
+.prompt-line{
+  font-size:10px;color:rgba(255,179,0,.4);
+  margin-bottom:20px;letter-spacing:1px;
+}
+.prompt-line::before{content:'> ';color:var(--green);}
+
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:9px;letter-spacing:3px;color:rgba(255,179,0,.5);margin-bottom:6px;text-transform:uppercase;}
+.field input{
+  width:100%;padding:10px 14px;
+  background:rgba(255,179,0,.04);
+  border:1px solid rgba(255,179,0,.2);
+  color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:14px;
+  outline:none;transition:all .2s;
+  caret-color:var(--amber);
+}
+.field input:focus{border-color:rgba(255,179,0,.6);background:rgba(255,179,0,.07);box-shadow:0 0 12px rgba(255,179,0,.1);}
+.field input::placeholder{color:rgba(255,179,0,.2);}
+
+.error-line{font-size:11px;color:var(--red);margin-bottom:14px;display:none;letter-spacing:1px;}
+.error-line::before{content:'[ERR] ';}
+.error-line.show{display:block;}
+
+.btn-access{
+  width:100%;padding:13px;margin-top:8px;
+  background:transparent;
+  border:1px solid var(--amber);
+  color:var(--amber);font-family:'Orbitron',monospace;font-size:11px;font-weight:700;
+  letter-spacing:5px;text-transform:uppercase;cursor:pointer;
+  transition:all .3s;
+  position:relative;overflow:hidden;
+}
+.btn-access::before{
+  content:'';position:absolute;inset:0;
+  background:var(--amber);transform:translateX(-101%);
+  transition:transform .25s ease;
+}
+.btn-access:hover::before{transform:translateX(0);}
+.btn-access:hover{color:#000;}
+.btn-access span{position:relative;z-index:1;}
+
+.back-link{
+  display:block;text-align:center;margin-top:20px;
+  font-size:9px;letter-spacing:2px;color:rgba(255,179,0,.25);
+  text-decoration:none;transition:color .2s;
+  text-transform:uppercase;
+}
+.back-link:hover{color:rgba(255,179,0,.6);}
+
+/* Blinking cursor */
+.cursor{display:inline-block;width:8px;height:12px;background:var(--amber);animation:blink .8s infinite;vertical-align:middle;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="terminal">
+  <div class="terminal-header">
+    <div class="terminal-dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+    <div class="terminal-title">POKO CONTROL SYSTEM v1.0</div>
+  </div>
+  <div class="terminal-body">
+    <div class="sys-logo">POKO</div>
+    <div class="sys-sub">SYSTÈME DE CONTRÔLE ADMINISTRATEUR</div>
+    <div class="prompt-line">ACCÈS RESTREINT — IDENTIFICATION REQUISE<span class="cursor"></span></div>
+    <div class="error-line" id="errLine">Identifiants incorrects</div>
+    <div class="field"><label>Identifiant admin</label><input type="text" id="adminUser" placeholder="admin" autocomplete="off"></div>
+    <div class="field"><label>Code d'accès</label><input type="password" id="adminPass" placeholder="••••••••"></div>
+    <button class="btn-access" onclick="doAdminLogin()"><span>ACCÉDER AU SYSTÈME</span></button>
+    <a class="back-link" href="index.html">← Retour au jeu</a>
+  </div>
+</div>
+<script>
+// Credentials admin (modifiable ici)
+const ADMIN_CREDS = { user: 'admin', pass: 'poko2024' };
+
+document.addEventListener('keydown', e => { if(e.key==='Enter') doAdminLogin(); });
+
+function doAdminLogin(){
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value;
+  document.getElementById('errLine').classList.remove('show');
+
+  // Check master admin
+  if(u === ADMIN_CREDS.user && p === ADMIN_CREDS.pass){
+    sessionStorage.setItem('poko_admin', '1');
+    sessionStorage.removeItem('poko_admin_sub');
+    window.location.href = 'admin.html';
+    return;
+  }
+
+  // Check sub-profiles
+  try{
+    const sps = JSON.parse(localStorage.getItem('poko_subprofiles')||'[]');
+    const sp = sps.find(s=>s.user===u && s.pass===btoa(p));
+    if(sp){
+      sessionStorage.setItem('poko_admin','1');
+      sessionStorage.setItem('poko_admin_sub', sp.user);
+      window.location.href = 'admin.html';
+      return;
+    }
+  }catch(e){}
+
+  document.getElementById('errLine').classList.add('show');
+  document.getElementById('adminPass').value = '';
+}
+</script>
+</body>
+</html>

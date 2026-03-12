@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKO — Mise</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<style>
+  :root { --gold:#d4a017; --gold-light:#f0c040; --red:#c0392b; --white:#f5f0e8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: radial-gradient(ellipse at center, #1e6b3a 0%, #0d3018 70%);
+    min-height: 100vh;
+    font-family: 'Space Mono', monospace;
+    color: var(--white);
+    display: flex; align-items: center; justify-content: center;
+  }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image: repeating-linear-gradient(45deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+    pointer-events:none;
+  }
+
+  .page {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 560px;
+    padding: 40px 24px;
+    animation: slideIn .5s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+
+  .page-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .back-btn {
+    width: 36px; height: 36px;
+    border: 1px solid rgba(212,160,23,.4);
+    background: transparent; color: var(--gold);
+    border-radius: 2px; cursor: pointer;
+    font-size: 16px; transition: all .2s;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none; flex-shrink: 0;
+  }
+  .back-btn:hover { background: rgba(212,160,23,.1); }
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px; color: var(--gold); letter-spacing: 3px;
+  }
+  .page-title span { font-size: 12px; display: block; letter-spacing: 4px; color: rgba(212,160,23,.5); margin-top: 2px; font-family: 'Space Mono', monospace; font-weight: 400; }
+
+  /* Balance banner */
+  .info-banner {
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(212,160,23,.2);
+    border-radius: 4px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .banner-item { font-size: 9px; letter-spacing: 2px; color: rgba(245,240,232,.4); text-transform: uppercase; }
+  .banner-item span { display: block; font-size: 13px; color: var(--white); margin-top: 3px; letter-spacing: 1px; }
+  .banner-item span.gold { color: var(--gold); }
+  .trust-bar-wrap { flex: 1; min-width: 120px; }
+  .trust-bar-bg { height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; margin-top: 6px; }
+  .trust-bar-fill { height: 4px; background: linear-gradient(90deg, var(--gold), var(--gold-light)); border-radius: 2px; transition: width .5s; }
+
+  /* Option cards */
+  .option-card {
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(212,160,23,.2);
+    border-radius: 6px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+    transition: border-color .2s;
+  }
+  .option-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .option-icon { font-size: 18px; }
+  .option-name { font-size: 10px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+  .option-desc { font-size: 9px; color: rgba(245,240,232,.4); letter-spacing: 1px; margin-left: auto; }
+
+  /* Mise input */
+  .mise-range-label {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .mise-range-label span { font-size: 9px; letter-spacing: 2px; color: rgba(245,240,232,.4); text-transform: uppercase; }
+  .mise-range-label strong { font-size: 11px; color: var(--gold); }
+
+  /* Champ saisie */
+  .mise-input-wrap {
+    position: relative; margin-bottom: 14px;
+  }
+  .mise-input {
+    width: 100%; background: rgba(0,0,0,.4);
+    border: 1px solid rgba(212,160,23,.4);
+    border-radius: 4px; padding: 14px 64px 14px 18px;
+    font-family: 'Playfair Display', serif;
+    font-size: 32px; font-weight: 700;
+    color: var(--gold); outline: none;
+    letter-spacing: 2px; text-align: center;
+    transition: border-color .2s;
+    -moz-appearance: textfield;
+  }
+  .mise-input::-webkit-outer-spin-button,
+  .mise-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .mise-input:focus { border-color: var(--gold); box-shadow: 0 0 12px rgba(212,160,23,.2); }
+  .mise-input-unit {
+    position: absolute; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 9px; letter-spacing: 3px;
+    color: rgba(212,160,23,.45);
+  }
+
+  /* Erreur multiple */
+  .mise-error {
+    display: none;
+    background: rgba(192,57,43,.1); border: 1px solid rgba(192,57,43,.4);
+    border-radius: 3px; padding: 10px 14px; margin-bottom: 14px;
+    font-size: 10px; color: #e74c3c; letter-spacing: 1px;
+    display: none; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .mise-error.show { display: flex; }
+  .fix-btn {
+    background: rgba(192,57,43,.2); border: 1px solid rgba(192,57,43,.5);
+    color: #e74c3c; font-family: 'Space Mono', monospace; font-size: 10px;
+    padding: 4px 10px; border-radius: 2px; cursor: pointer;
+    white-space: nowrap; transition: all .2s;
+  }
+  .fix-btn:hover { background: rgba(192,57,43,.35); }
+
+  .mise-slider {
+    width: 100%; -webkit-appearance: none;
+    height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,.15);
+    outline: none; margin-bottom: 16px;
+    cursor: pointer;
+  }
+  .mise-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--gold);
+    cursor: pointer; box-shadow: 0 0 8px rgba(212,160,23,.6);
+    border: 2px solid var(--gold-light);
+  }
+  .mise-slider::-moz-range-thumb {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--gold); cursor: pointer;
+    border: 2px solid var(--gold-light);
+  }
+
+  .mise-pot { font-size: 11px; color: rgba(245,240,232,.5); margin-bottom: 14px; letter-spacing: 1px; text-align: center; }
+
+  /* Preset buttons */
+  .preset-grid {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center; margin-bottom: 8px;
+  }
+  .preset-btn {
+    padding: 8px 14px;
+    border: 1px solid rgba(212,160,23,.3);
+    background: transparent; color: rgba(245,240,232,.6);
+    font-family: 'Space Mono', monospace; font-size: 11px;
+    cursor: pointer; border-radius: 3px; transition: all .2s;
+    letter-spacing: 1px;
+  }
+  .preset-btn:hover { border-color: var(--gold); color: var(--gold); background: rgba(212,160,23,.06); }
+  .preset-btn.active {
+    background: linear-gradient(135deg, rgba(212,160,23,.25), rgba(212,160,23,.12));
+    border-color: var(--gold); color: var(--gold-light); font-weight: 700;
+  }
+
+  /* Table badge (arrière-plan) */
+  .table-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 20px;
+    font-size: 9px; letter-spacing: 2px;
+    color: rgba(245,240,232,.45);
+    margin-bottom: 14px;
+    transition: all .3s;
+  }
+
+  /* Opt buttons */
+  .option-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .opt-btn {
+    padding: 10px 20px;
+    border: 1px solid rgba(245,240,232,.25);
+    background: transparent; color: rgba(245,240,232,.7);
+    font-family: 'Space Mono', monospace; font-size: 11px;
+    cursor: pointer; border-radius: 3px; transition: all .2s;
+    letter-spacing: 1px; flex: 1; min-width: 120px; text-align: center;
+  }
+  .opt-btn:hover { border-color: rgba(212,160,23,.5); color: var(--white); }
+  .opt-btn.selected {
+    background: linear-gradient(135deg, rgba(212,160,23,.25), rgba(212,160,23,.15));
+    color: var(--gold-light); border-color: var(--gold); font-weight: 700;
+  }
+  .info-tag {
+    display: inline-block; font-size: 9px; letter-spacing: 1px;
+    color: rgba(245,240,232,.35); margin-top: 8px;
+    padding: 4px 10px; border: 1px solid rgba(255,255,255,.08);
+    border-radius: 2px;
+  }
+
+  /* Preview */
+  .preview {
+    background: rgba(0,0,0,.2);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 4px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex; gap: 20px; flex-wrap: wrap;
+  }
+  .preview-item { font-size: 9px; letter-spacing: 1px; color: rgba(245,240,232,.4); }
+  .preview-item span { display: block; color: var(--white); font-size: 11px; margin-top: 3px; letter-spacing: 1px; }
+
+  /* Bouton lancer */
+  .btn-row { display: flex; gap: 12px; }
+  .btn {
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    color: #1a1a1a; border: none;
+    padding: 15px 0; flex: 1;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    cursor: pointer; border-radius: 3px;
+    transition: all .25s;
+    box-shadow: 0 4px 20px rgba(212,160,23,.3);
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(212,160,23,.5); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* Alerte solde */
+  .balance-warn {
+    display: none; margin-top: 10px; padding: 8px 12px;
+    background: rgba(192,57,43,.1); border: 1px solid rgba(192,57,43,.3);
+    border-radius: 3px; font-size: 10px; color: #e74c3c; letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Bannière solde -->
+  <div class="info-banner" id="infoBanner" style="display:none">
+    <div class="banner-item">SOLDE<span class="gold" id="bannerBalance">—</span></div>
+    <div class="banner-item">NIVEAU<span id="bannerLevel">—</span></div>
+    <div class="banner-item trust-bar-wrap">
+      ACCÈS TABLES<span id="bannerTrust">—</span>
+      <div class="trust-bar-bg"><div class="trust-bar-fill" id="trustBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="page-header">
+    <a href="index.html" class="back-btn">←</a>
+    <div class="page-title">
+      Mise
+      <span>CHOISISSEZ VOTRE MISE</span>
+    </div>
+  </div>
+
+  <!-- MISE -->
+  <div class="option-card">
+    <div class="option-header">
+      <span class="option-icon">💰</span>
+      <span class="option-name">Votre mise</span>
+      <span class="option-desc" id="rangeLabel">—</span>
+    </div>
+
+    <!-- Champ saisie -->
+    <div class="mise-input-wrap">
+      <input type="number" class="mise-input" id="miseInput"
+        min="50" step="50" placeholder="50"
+        oninput="onInputChange(this.value)">
+      <span class="mise-input-unit">FCFA</span>
+    </div>
+
+    <!-- Erreur multiple de 50 -->
+    <div class="mise-error" id="miseError">
+      <span id="miseErrorMsg">Montant non valide.</span>
+      <button class="fix-btn" id="fixBtn" onclick="applyFix()">Corriger</button>
+    </div>
+
+    <!-- Slider -->
+    <input type="range" class="mise-slider" id="miseSlider"
+      min="0" max="0" step="1" value="0"
+      oninput="onSliderChange(this.value)">
+
+    <!-- Table badge + pot -->
+    <div style="text-align:center">
+      <div class="table-badge" id="tableBadge">—</div>
+    </div>
+    <div class="mise-pot" id="misePot">Cagnotte potentielle : —</div>
+
+    <!-- Presets -->
+    <div class="preset-grid" id="presetGrid"></div>
+
+    <!-- Alerte solde -->
+    <div class="balance-warn" id="balanceWarn">⚠ Solde insuffisant pour cette mise</div>
+  </div>
+
+  <!-- SABOT -->
+  <div class="option-card">
+    <div class="option-header">
+      <span class="option-icon">🃏</span>
+      <span class="option-name">Option Sabot</span>
+      <span class="option-desc">Cartes défaussées</span>
+    </div>
+    <div class="option-row">
+      <button class="opt-btn selected" id="sabotRemis"  onclick="selectOpt('sabot','remis')">Remises dans le sabot</button>
+      <button class="opt-btn"          id="sabotEcarte" onclick="selectOpt('sabot','ecarte')">Écartées définitivement</button>
+    </div>
+  </div>
+
+  <!-- KIN -->
+  <div class="option-card">
+    <div class="option-header">
+      <span class="option-icon">⚡</span>
+      <span class="option-name">Option KIN</span>
+      <span class="option-desc">Règle spéciale</span>
+    </div>
+    <div class="option-row">
+      <button class="opt-btn selected" id="kinActif"   onclick="selectOpt('kin','actif')">KIN Activé</button>
+      <button class="opt-btn"          id="kinInactif" onclick="selectOpt('kin','inactif')">KIN Désactivé</button>
+    </div>
+    <div class="info-tag" id="kinInfo">✦ 4 cartes de même couleur = sortie automatique de l'étape</div>
+  </div>
+
+  <!-- Récap -->
+  <div class="preview">
+    <div class="preview-item">MISE<span id="prev-mise">—</span></div>
+    <div class="preview-item">CAGNOTTE<span id="prev-pot">—</span></div>
+    <div class="preview-item">SABOT<span id="prev-sabot">Remis</span></div>
+    <div class="preview-item">KIN<span id="prev-kin">Activé</span></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="launchBtn" onclick="startGame()" disabled>▶ LANCER LA PARTIE</button>
+  </div>
+
+</div>
+
+<script>
+let opts = { mise: 0, sabot: 'remis', kin: 'actif' };
+let currentUser = null;
+let miseSteps = [];   // multiples de 50 accessibles
+let maxMise   = 100;  // plafond du joueur (Infinity pour Mokonzi)
+let fixValue  = 0;    // valeur de correction suggérée
+
+const PALIERS = [
+  { trustMin: 85, max: Infinity, id:'mokonzi', name:'Mokonzi', icon:'🔴' },
+  { trustMin: 60, max: 1000,     id:'mokolo',  name:'Mokolo',  icon:'🟡' },
+  { trustMin: 30, max: 500,      id:'yaya',    name:'Yaya',    icon:'🔵' },
+  { trustMin: 0,  max: 100,      id:'leki',    name:'Leki',    icon:'🟢' },
+];
+
+function getPlayerPalier(user) {
+  for (const p of PALIERS) {
+    if ((user.trustScore || 0) >= p.trustMin || user.vip) return p;
+  }
+  return PALIERS[PALIERS.length - 1];
+}
+
+function getTableFromMise(mise) {
+  if (mise <= 100)  return { id:'leki',    name:'Leki',    icon:'🟢' };
+  if (mise <= 500)  return { id:'yaya',    name:'Yaya',    icon:'🔵' };
+  if (mise <= 1000) return { id:'mokolo',  name:'Mokolo',  icon:'🟡' };
+  return                   { id:'mokonzi', name:'Mokonzi', icon:'🔴' };
+}
+
+function buildPresets(sliderMax) {
+  const all = [];
+  for (let v = 50; v <= sliderMax; v += 50) all.push(v);
+  if (all.length <= 8) return all;
+  const step = Math.floor(all.length / 7);
+  const picks = new Set([all[0]]);
+  for (let i = step; i < all.length; i += step) picks.add(all[i]);
+  picks.add(all[all.length - 1]);
+  return [...picks].sort((a, b) => a - b);
+}
+
+(async () => {
+  await requireAuth();
+  currentUser = await POKO_DB.currentUserAsync();
+  if (!currentUser) return;
+
+  const li = POKO_DB.getLevelInfo(currentUser.level);
+  document.getElementById('infoBanner').style.display = 'flex';
+  document.getElementById('bannerBalance').textContent = currentUser.balance.toLocaleString('fr-FR') + ' FCFA';
+  document.getElementById('bannerLevel').textContent   = li.icon + ' ' + li.name;
+  document.getElementById('bannerTrust').textContent   = currentUser.trustScore + ' / 100';
+  document.getElementById('trustBar').style.width      = currentUser.trustScore + '%';
+
+  const palier = getPlayerPalier(currentUser);
+  maxMise = palier.max; // Infinity pour Mokonzi
+
+  // Le slider est limité par le solde si Mokonzi (sans plafond fixe)
+  const sliderMax = maxMise === Infinity
+    ? Math.max(50, Math.floor(currentUser.balance / 50) * 50)
+    : maxMise;
+
+  // Construire les steps
+  miseSteps = [];
+  for (let v = 50; v <= sliderMax; v += 50) miseSteps.push(v);
+  if (miseSteps.length === 0) miseSteps = [50];
+
+  // Configurer le slider
+  const slider = document.getElementById('miseSlider');
+  slider.min   = 0;
+  slider.max   = miseSteps.length - 1;
+  slider.value = 0;
+
+  // Label de plage
+  const maxLabel = maxMise === Infinity
+    ? '∞ (limité par votre solde)'
+    : maxMise.toLocaleString('fr-FR') + ' FCFA';
+  document.getElementById('rangeLabel').textContent = '50 → ' + maxLabel;
+
+  // Presets
+  const presets = buildPresets(sliderMax);
+  const grid = document.getElementById('presetGrid');
+  presets.forEach(v => {
+    const btn = document.createElement('button');
+    btn.className    = 'preset-btn';
+    btn.textContent  = v.toLocaleString('fr-FR');
+    btn.dataset.mise = v;
+    btn.onclick = () => selectMise(v);
+    grid.appendChild(btn);
+  });
+
+  selectMise(50);
+})();
+
+// Slider → met à jour le champ + UI
+function onSliderChange(idx) {
+  const v = miseSteps[parseInt(idx)];
+  hideError();
+  applyMise(v, false); // false = ne pas re-bouger le slider
+}
+
+// Champ texte → valide, affiche erreur si besoin
+function onInputChange(raw) {
+  const v = parseInt(raw) || 0;
+  hideError();
+
+  if (v < 50) {
+    // pas encore assez saisi, on laisse sans erreur
+    opts.mise = 0;
+    refreshUI(0);
+    document.getElementById('launchBtn').disabled = true;
+    return;
+  }
+
+  if (v % 50 !== 0) {
+    // Non multiple de 50 → proposer la borne sup
+    fixValue = Math.ceil(v / 50) * 50;
+    // Vérifier que la correction ne dépasse pas le plafond
+    if (maxMise !== Infinity && fixValue > maxMise) fixValue = maxMise;
+    showError(`${v} n'est pas un multiple de 50. Corriger à ${fixValue.toLocaleString('fr-FR')} FCFA ?`);
+    opts.mise = 0;
+    document.getElementById('launchBtn').disabled = true;
+    return;
+  }
+
+  // Multiple de 50 valide — vérifier le plafond
+  if (maxMise !== Infinity && v > maxMise) {
+    fixValue = maxMise;
+    showError(`Dépasse votre plafond (${maxMise.toLocaleString('fr-FR')} FCFA). Corriger à ${fixValue.toLocaleString('fr-FR')} FCFA ?`);
+    opts.mise = 0;
+    document.getElementById('launchBtn').disabled = true;
+    return;
+  }
+
+  applyMise(v, true); // mettre à jour le slider
+}
+
+// Applique une mise valide
+function applyMise(v, moveSlider) {
+  opts.mise = v;
+
+  // Synchroniser le champ texte
+  const input = document.getElementById('miseInput');
+  if (input.value !== String(v)) input.value = v;
+
+  // Synchroniser le slider
+  if (moveSlider) {
+    // trouver l'index le plus proche dans miseSteps
+    const idx = miseSteps.reduce((best, s, i) =>
+      Math.abs(s - v) < Math.abs(miseSteps[best] - v) ? i : best, 0);
+    document.getElementById('miseSlider').value = idx;
+  }
+
+  refreshUI(v);
+}
+
+function refreshUI(v) {
+  const t = getTableFromMise(v);
+  document.getElementById('tableBadge').textContent = v > 0 ? t.icon + ' Table ' + t.name : '—';
+  document.getElementById('misePot').textContent     = v > 0
+    ? 'Cagnotte potentielle : ' + (v * 4).toLocaleString('fr-FR') + ' FCFA'
+    : 'Cagnotte potentielle : —';
+
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.mise) === v);
+  });
+
+  document.getElementById('prev-mise').textContent = v > 0 ? v.toLocaleString('fr-FR') + ' FCFA' : '—';
+  document.getElementById('prev-pot').textContent  = v > 0 ? (v * 4).toLocaleString('fr-FR') + ' FCFA' : '—';
+
+  const canPlay = v >= 50 && currentUser && currentUser.balance >= v;
+  const warn = document.getElementById('balanceWarn');
+  warn.style.display = (v > 0 && !canPlay && currentUser && currentUser.balance < v) ? 'block' : 'none';
+  const btn = document.getElementById('launchBtn');
+  btn.disabled    = !canPlay;
+  btn.textContent = canPlay ? '▶ LANCER LA PARTIE' : (v < 50 ? '▶ LANCER LA PARTIE' : '⚠ Solde insuffisant');
+}
+
+function showError(msg) {
+  const el = document.getElementById('miseError');
+  document.getElementById('miseErrorMsg').textContent = msg;
+  document.getElementById('fixBtn').textContent = 'Corriger à ' + fixValue.toLocaleString('fr-FR');
+  el.classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('miseError').classList.remove('show');
+}
+
+function applyFix() {
+  hideError();
+  applyMise(fixValue, true);
+}
+
+// Preset cliqué
+function selectMise(v) {
+  hideError();
+  applyMise(v, true);
+}
+
+function selectOpt(type, val) {
+  opts[type] = val;
+  if (type === 'sabot') {
+    document.getElementById('sabotRemis').classList.toggle('selected',  val === 'remis');
+    document.getElementById('sabotEcarte').classList.toggle('selected', val === 'ecarte');
+    document.getElementById('prev-sabot').textContent = val === 'remis' ? 'Remis' : 'Écarté';
+  } else {
+    document.getElementById('kinActif').classList.toggle('selected',   val === 'actif');
+    document.getElementById('kinInactif').classList.toggle('selected', val === 'inactif');
+    document.getElementById('prev-kin').textContent = val === 'actif' ? 'Activé' : 'Désactivé';
+    document.getElementById('kinInfo').textContent  = val === 'actif'
+      ? '✦ 4 cartes de même couleur = sortie automatique de l\'étape'
+      : '✦ Finale : le joueur avec 4 cartes de même couleur échange 2 cartes';
+  }
+}
+
+async function startGame() {
+  if (!opts.mise || opts.mise < 50) { alert('Choisis une mise.'); return; }
+  const r = await POKO_DB.deductMise(opts.mise);
+  if (!r.ok) { alert(r.msg); return; }
+  const t = getTableFromMise(opts.mise);
+  sessionStorage.setItem('pokoOptions', JSON.stringify({
+    table:     t.id,
+    tableName: t.name,
+    mise:      opts.mise,
+    pot:       opts.mise * 4,
+    sabot:     opts.sabot,
+    kin:       opts.kin,
+  }));
+  window.location.href = 'game.html';
+}
+</script>
+</body>
+</html>

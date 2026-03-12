@@ -1,0 +1,3304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKO — Control Room</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<style>
+:root{
+  /* Control Room — Noir + Ambre casino */
+  --amber:#ffb300; --amber-dim:rgba(255,179,0,.12); --amber-glow:rgba(255,179,0,.35);
+  --red:#ef4444; --red-dim:rgba(239,68,68,.15);
+  --green:#22c55e; --green-dim:rgba(34,197,94,.1);
+  --blue:#60a5fa; --blue-dim:rgba(96,165,250,.12);
+  --purple:#a78bfa;
+  --bg:#0a0a0a; --panel:#111111; --panel2:#181818; --border:rgba(255,179,0,.18);
+  --text:rgba(255,255,255,.88); --text-dim:rgba(255,255,255,.35);
+  /* Accent secondaire */
+  --white:#f8f8f8; --accent2:#1a1a1a;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);font-family:'Share Tech Mono',monospace;color:var(--text);}
+
+/* Scanlines */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.08) 3px,rgba(0,0,0,.08) 4px);pointer-events:none;z-index:200;}
+
+/* ── LAYOUT ── */
+.shell{display:flex;height:100vh;}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:220px;flex-shrink:0;
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.sidebar-logo{
+  padding:20px 16px 16px;
+  border-bottom:1px solid var(--border);
+}
+.logo-text{font-family:'Orbitron',monospace;font-size:18px;font-weight:900;color:var(--amber);letter-spacing:6px;text-shadow:0 0 15px var(--amber-glow);}
+.logo-sub{font-size:8px;letter-spacing:3px;color:var(--text-dim);margin-top:3px;text-transform:uppercase;}
+.system-status{
+  margin:12px 16px;padding:8px 10px;
+  background:var(--amber-dim);border:1px solid rgba(230,57,70,.25);
+  border-radius:2px;font-size:9px;letter-spacing:2px;color:var(--amber);
+  display:flex;align-items:center;gap:6px;
+}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 2s infinite;flex-shrink:0;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(230,57,70,.5)}50%{opacity:.7;box-shadow:0 0 0 4px rgba(230,57,70,0)}}
+
+.nav-section{padding:8px 0;}
+.nav-label{font-size:8px;letter-spacing:3px;color:var(--text-dim);padding:6px 16px 4px;text-transform:uppercase;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px;cursor:pointer;
+  font-size:11px;letter-spacing:1px;
+  color:var(--text-dim);transition:all .15s;
+  border-left:2px solid transparent;
+  text-transform:uppercase;
+}
+.nav-item:hover{color:var(--text);background:rgba(255,179,0,.04);}
+.nav-item.active{color:var(--amber);border-left-color:var(--amber);background:var(--amber-dim);}
+.nav-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:8px;padding:2px 5px;border-radius:2px;}
+
+.sidebar-footer{
+  margin-top:auto;padding:14px 16px;
+  border-top:1px solid var(--border);
+  font-size:9px;color:var(--text-dim);letter-spacing:1px;
+}
+.logout-btn{width:100%;padding:8px;background:transparent;border:1px solid rgba(255,51,51,.3);color:rgba(255,51,51,.6);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s;margin-top:8px;text-transform:uppercase;}
+.logout-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-dim);}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+.main::-webkit-scrollbar{width:4px;}
+.main::-webkit-scrollbar-thumb{background:rgba(255,179,0,.2);border-radius:2px;}
+
+.topbar{
+  height:52px;flex-shrink:0;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;
+  position:sticky;top:0;z-index:50;
+}
+.topbar-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:4px;}
+.topbar-time{font-size:11px;color:var(--text-dim);letter-spacing:2px;}
+.topbar-clock{color:var(--amber);}
+
+.content{padding:24px;flex:1;}
+
+/* ── PANELS ── */
+.panel{display:none;animation:fadeIn .3s ease;}
+.panel.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── DASHBOARD ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;}
+.kpi{
+  background:var(--panel);border:1px solid var(--border);
+  padding:18px 20px;position:relative;overflow:hidden;
+}
+.kpi::after{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--amber);}
+.kpi.green::after{background:var(--green);}
+.kpi.red::after{background:var(--red);}
+.kpi.blue::after{background:var(--blue);}
+.kpi-label{font-size:8px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;}
+.kpi-val{font-family:'Orbitron',monospace;font-size:24px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+.kpi.green .kpi-val{color:var(--green);}
+.kpi.red .kpi-val{color:var(--red);}
+.kpi.blue .kpi-val{color:var(--blue);}
+.kpi-sub{font-size:9px;color:var(--text-dim);margin-top:4px;letter-spacing:1px;}
+/* 3 caisses */
+.caisses-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+@media(max-width:700px){.caisses-grid{grid-template-columns:1fr;}}
+.caisse-box{padding:22px 20px;border:1px solid var(--border);background:var(--panel);position:relative;overflow:hidden;}
+.caisse-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.caisse-box.acq::before{background:linear-gradient(90deg,#f59e0b,#fbbf24);}
+.caisse-box.ret::before{background:linear-gradient(90deg,#22c55e,#4ade80);}
+.caisse-box.ops::before{background:linear-gradient(90deg,#3b82f6,#60a5fa);}
+.caisse-name{font-size:8px;letter-spacing:4px;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px;}
+.caisse-pct{font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:12px;}
+.caisse-amount{font-family:'Orbitron',monospace;font-size:22px;font-weight:700;letter-spacing:2px;margin-bottom:8px;}
+.caisse-box.acq .caisse-amount{color:#f59e0b;}
+.caisse-box.ret .caisse-amount{color:#22c55e;}
+.caisse-box.ops .caisse-amount{color:#3b82f6;}
+.caisse-bar-bg{height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-bottom:8px;}
+.caisse-bar-fill{height:3px;border-radius:2px;transition:width .6s;}
+.caisse-box.acq .caisse-bar-fill{background:#f59e0b;}
+.caisse-box.ret .caisse-bar-fill{background:#22c55e;}
+.caisse-box.ops .caisse-bar-fill{background:#3b82f6;}
+.caisse-desc{font-size:9px;color:var(--text-dim);letter-spacing:1px;line-height:1.6;}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
+@media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+
+.card{background:var(--panel);border:1px solid var(--border);padding:20px;}
+.card-title{
+  font-size:9px;letter-spacing:4px;color:var(--text-dim);
+  text-transform:uppercase;margin-bottom:16px;padding-bottom:10px;
+  border-bottom:1px solid rgba(255,179,0,.08);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-title span{color:var(--amber);}
+
+/* Activity feed */
+.feed{max-height:220px;overflow-y:auto;}
+.feed::-webkit-scrollbar{width:2px;}
+.feed::-webkit-scrollbar-thumb{background:rgba(255,179,0,.2);}
+.feed-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,179,0,.05);font-size:11px;}
+.feed-item:last-child{border-bottom:none;}
+.feed-time{color:var(--text-dim);flex-shrink:0;font-size:10px;}
+.feed-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.feed-dot.win{background:var(--green);}
+.feed-dot.lose{background:var(--red);}
+.feed-dot.join{background:var(--blue);}
+.feed-dot.warn{background:var(--amber);}
+.feed-text{color:var(--text);}
+
+/* Bar chart */
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:100px;margin-top:8px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.bar{width:100%;background:linear-gradient(180deg,var(--amber) 0%,rgba(255,179,0,.3) 100%);border-radius:2px 2px 0 0;min-height:4px;transition:height .5s ease;}
+.bar-lbl{font-size:8px;color:var(--text-dim);letter-spacing:1px;}
+.bar-val{font-size:8px;color:var(--amber);}
+
+/* ── PLAYERS TABLE ── */
+.players-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+.search-input{
+  flex:1;min-width:180px;padding:8px 12px;
+  background:var(--panel2);border:1px solid var(--border);
+  color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;
+  outline:none;transition:border-color .2s;
+}
+.search-input:focus{border-color:rgba(255,179,0,.5);}
+.search-input::placeholder{color:var(--text-dim);}
+.filter-btn{
+  padding:8px 14px;background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:10px;
+  cursor:pointer;transition:all .15s;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;
+}
+.filter-btn:hover,.filter-btn.active{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+
+.players-table{width:100%;border-collapse:collapse;}
+.players-table th{
+  font-size:8px;letter-spacing:3px;color:var(--text-dim);
+  text-transform:uppercase;padding:8px 12px;text-align:left;
+  border-bottom:1px solid rgba(255,179,0,.1);
+}
+.players-table td{padding:11px 12px;font-size:12px;border-bottom:1px solid rgba(255,179,0,.04);}
+.players-table tr:hover td{background:rgba(255,179,0,.03);}
+.status-badge{
+  display:inline-block;padding:2px 8px;font-size:9px;letter-spacing:2px;border-radius:1px;
+}
+.status-badge.active{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,230,118,.25);}
+.status-badge.banned{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,51,51,.25);}
+.status-badge.vip{background:rgba(198,120,255,.12);color:var(--purple);border:1px solid rgba(198,120,255,.25);}
+.action-btn{
+  padding:4px 10px;background:transparent;border:1px solid;
+  font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;
+  letter-spacing:1px;transition:all .15s;text-transform:uppercase;margin-right:4px;
+}
+.action-btn.ban{border-color:rgba(255,51,51,.4);color:rgba(255,51,51,.7);}
+.action-btn.ban:hover{background:var(--red-dim);color:var(--red);}
+.action-btn.unban{border-color:rgba(0,230,118,.4);color:rgba(0,230,118,.7);}
+.action-btn.unban:hover{background:var(--green-dim);color:var(--green);}
+.action-btn.view{border-color:rgba(0,180,255,.4);color:rgba(0,180,255,.7);}
+.action-btn.view:hover{background:var(--blue-dim);color:var(--blue);}
+.action-btn.vip{border-color:rgba(198,120,255,.4);color:rgba(198,120,255,.7);}
+.action-btn.vip:hover{background:rgba(198,120,255,.1);color:var(--purple);}
+
+/* ── RTP CONTROL ── */
+.rtp-header{
+  background:rgba(255,51,51,.06);border:1px solid rgba(255,51,51,.2);
+  padding:14px 18px;margin-bottom:20px;
+  display:flex;align-items:center;gap:12px;
+}
+.rtp-warning{font-size:10px;color:rgba(255,150,50,.8);letter-spacing:1px;line-height:1.7;}
+.rtp-warning strong{color:var(--amber);}
+
+.rtp-global{background:var(--panel);border:1px solid var(--border);padding:20px;margin-bottom:20px;}
+.rtp-global-title{font-size:9px;letter-spacing:4px;color:var(--text-dim);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;}
+.rtp-preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.rtp-preset{
+  padding:8px 16px;border:1px solid var(--border);background:transparent;
+  color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:10px;
+  cursor:pointer;transition:all .2s;letter-spacing:1px;text-transform:uppercase;
+}
+.rtp-preset:hover{border-color:var(--amber);color:var(--amber);}
+.rtp-preset.p-neutre{} 
+.rtp-preset.p-fav:hover,.rtp-preset.p-fav.on{border-color:var(--green);color:var(--green);background:var(--green-dim);}
+.rtp-preset.p-defav:hover,.rtp-preset.p-defav.on{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+.rtp-preset.p-ruine:hover,.rtp-preset.p-ruine.on{border-color:var(--red);color:var(--red);background:var(--red-dim);}
+.rtp-preset.p-neutre:hover,.rtp-preset.p-neutre.on{border-color:var(--blue);color:var(--blue);background:var(--blue-dim);}
+
+/* Slider style machine à sous */
+.rtp-players{display:flex;flex-direction:column;gap:16px;}
+.rtp-player-row{
+  background:var(--panel);border:1px solid var(--border);padding:16px 20px;
+  display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+}
+.rtp-player-name{min-width:130px;font-size:12px;color:var(--text);letter-spacing:1px;}
+.rtp-player-name .you-tag{color:var(--amber);font-size:9px;margin-left:5px;}
+.rtp-slider-wrap{flex:1;min-width:200px;}
+.rtp-label-row{display:flex;justify-content:space-between;font-size:8px;color:var(--text-dim);letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;}
+.rtp-slider{
+  width:100%;height:6px;-webkit-appearance:none;appearance:none;
+  background:linear-gradient(90deg,var(--amber) 0%,var(--amber) var(--val,50%),rgba(255,255,255,.1) var(--val,50%),rgba(255,255,255,.1) 100%);
+  border-radius:3px;outline:none;cursor:pointer;
+}
+.rtp-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;width:18px;height:18px;
+  background:var(--amber);border-radius:50%;
+  box-shadow:0 0 8px var(--amber-glow);cursor:pointer;
+  transition:transform .1s;
+}
+.rtp-slider::-webkit-slider-thumb:hover{transform:scale(1.2);}
+.rtp-val-display{
+  min-width:54px;text-align:right;
+  font-family:'Orbitron',monospace;font-size:14px;font-weight:700;
+}
+.rtp-val-good{color:var(--green);}
+.rtp-val-mid{color:var(--amber);}
+.rtp-val-bad{color:var(--red);}
+.rtp-mode-tag{font-size:8px;letter-spacing:2px;padding:2px 7px;border-radius:1px;min-width:70px;text-align:center;}
+.save-btn{
+  padding:10px 24px;background:linear-gradient(135deg,var(--amber),#ffd040);
+  color:#000;border:none;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;
+  letter-spacing:3px;cursor:pointer;transition:all .2s;text-transform:uppercase;
+}
+.save-btn:hover{box-shadow:0 0 20px var(--amber-glow);transform:translateY(-1px);}
+
+/* ── AI DIFFICULTY ── */
+.diff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;}
+.diff-card{
+  background:var(--panel);border:2px solid var(--border);padding:20px;
+  cursor:pointer;transition:all .2s;text-align:center;position:relative;overflow:hidden;
+}
+.diff-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .2s;}
+.diff-card.d-easy::before{background:linear-gradient(135deg,rgba(0,230,118,.06),transparent);}
+.diff-card.d-mid::before{background:linear-gradient(135deg,rgba(255,179,0,.06),transparent);}
+.diff-card.d-hard::before{background:linear-gradient(135deg,rgba(255,120,0,.06),transparent);}
+.diff-card.d-god::before{background:linear-gradient(135deg,rgba(255,51,51,.06),transparent);}
+.diff-card:hover::before,.diff-card.selected::before{opacity:1;}
+.diff-card.selected.d-easy{border-color:var(--green);}
+.diff-card.selected.d-mid{border-color:var(--amber);}
+.diff-card.selected.d-hard{border-color:rgba(255,120,0,.8);}
+.diff-card.selected.d-god{border-color:var(--red);}
+.diff-icon{font-size:32px;margin-bottom:10px;}
+.diff-name{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;letter-spacing:3px;margin-bottom:6px;}
+.diff-name.d-easy{color:var(--green);}
+.diff-name.d-mid{color:var(--amber);}
+.diff-name.d-hard{color:rgba(255,120,0,.9);}
+.diff-name.d-god{color:var(--red);}
+.diff-desc{font-size:10px;color:var(--text-dim);letter-spacing:1px;line-height:1.7;}
+.diff-selected-tag{
+  position:absolute;top:10px;right:10px;
+  font-size:8px;letter-spacing:2px;padding:2px 6px;
+  background:var(--green);color:#000;display:none;
+}
+.diff-card.selected .diff-selected-tag{display:block;}
+
+.diff-params{background:var(--panel);border:1px solid var(--border);padding:20px;margin-bottom:20px;}
+.param-row{display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
+.param-row:last-child{margin-bottom:0;}
+.param-label{min-width:200px;font-size:11px;color:var(--text);letter-spacing:1px;}
+.param-label small{display:block;font-size:9px;color:var(--text-dim);margin-top:2px;}
+.param-slider{flex:1;min-width:150px;height:4px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.1);border-radius:2px;outline:none;cursor:pointer;}
+.param-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--amber);border-radius:50%;cursor:pointer;}
+.param-val{min-width:40px;text-align:right;font-family:'Orbitron',monospace;font-size:12px;color:var(--amber);}
+
+/* ── LOGS ── */
+.log-toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.log-filter{padding:6px 12px;background:transparent;border:1px solid var(--border);color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .15s;}
+.log-filter.active{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+.clear-btn{margin-left:auto;padding:6px 14px;background:transparent;border:1px solid rgba(255,51,51,.3);color:rgba(255,51,51,.6);font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .15s;}
+.clear-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-dim);}
+
+.log-terminal{
+  background:#050505;border:1px solid rgba(255,179,0,.1);
+  padding:16px;height:420px;overflow-y:auto;
+  font-size:11px;line-height:2;
+}
+.log-terminal::-webkit-scrollbar{width:4px;}
+.log-terminal::-webkit-scrollbar-thumb{background:rgba(255,179,0,.2);}
+.log-line{display:flex;gap:10px;align-items:flex-start;}
+.log-ts{color:rgba(255,179,0,.3);flex-shrink:0;font-size:10px;}
+.log-type{font-size:8px;letter-spacing:2px;padding:1px 5px;border-radius:1px;flex-shrink:0;min-width:48px;text-align:center;}
+.log-type.GAME{background:rgba(0,180,255,.15);color:var(--blue);}
+.log-type.WIN{background:var(--green-dim);color:var(--green);}
+.log-type.LOSE{background:var(--red-dim);color:var(--red);}
+.log-type.JOIN{background:rgba(198,120,255,.12);color:var(--purple);}
+.log-type.SYS{background:var(--amber-dim);color:var(--amber);}
+.log-msg{color:var(--text);}
+
+/* ── SETTINGS ── */
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;}
+.setting-group{background:var(--panel);border:1px solid var(--border);padding:20px;}
+.setting-title{font-size:9px;letter-spacing:4px;color:var(--amber);text-transform:uppercase;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid rgba(255,179,0,.08);}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,179,0,.04);}
+.setting-row:last-child{border-bottom:none;}
+.setting-key{font-size:12px;color:var(--text);}
+.setting-key small{display:block;font-size:9px;color:var(--text-dim);margin-top:2px;}
+/* Toggle switch */
+.toggle{position:relative;width:44px;height:22px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:11px;cursor:pointer;transition:.3s;}
+.toggle-track::before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:rgba(255,255,255,.4);border-radius:50%;transition:.3s;}
+.toggle input:checked+.toggle-track{background:rgba(255,179,0,.3);border:1px solid var(--amber);}
+.toggle input:checked+.toggle-track::before{transform:translateX(22px);background:var(--amber);}
+.num-input{background:var(--panel2);border:1px solid var(--border);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:14px;padding:4px 10px;width:80px;text-align:center;outline:none;}
+.num-input:focus{border-color:var(--amber);}
+
+/* Section headers */
+.section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.section-hdr h2{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:4px;text-transform:uppercase;}
+
+/* Modal player detail */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:500;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:var(--panel);border:1px solid rgba(255,179,0,.3);padding:28px;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;}
+.modal-title{font-family:'Orbitron',monospace;font-size:14px;color:var(--amber);letter-spacing:4px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.modal-close{float:right;background:transparent;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;font-family:'Share Tech Mono',monospace;}
+.modal-close:hover{color:var(--red);}
+.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,179,0,.04);font-size:12px;}
+.detail-key{color:var(--text-dim);letter-spacing:1px;}
+.detail-val{color:var(--text);}
+</style>
+</head>
+<body>
+
+<!-- Player detail modal -->
+<div class="modal-overlay" id="playerModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title" id="modalTitle">PROFIL JOUEUR</div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<div class="shell">
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">POKO</div>
+    <div class="logo-sub">Control Room</div>
+  </div>
+  <div class="system-status"><div class="status-dot"></div>SYSTÈME OPÉRATIONNEL</div>
+  <nav class="nav-section">
+    <div class="nav-label">Modules</div>
+    <div class="nav-item active" onclick="showPanel('dashboard',this)"><span class="nav-icon">📊</span>Dashboard</div>
+    <div class="nav-item" onclick="showPanel('players',this)"><span class="nav-icon">👥</span>Joueurs</div>
+    <div class="nav-item" onclick="showPanel('rtp',this)"><span class="nav-icon">🎰</span>Contrôle RTP</div>
+    <div class="nav-item" onclick="showPanel('difficulty',this)"><span class="nav-icon">🤖</span>Difficulté IA</div>
+    <div class="nav-item" onclick="showPanel('logs',this)"><span class="nav-icon">📋</span>Journal</div>
+    <div class="nav-item" onclick="showPanel('caisse',this)"><span class="nav-icon">💵</span>Caisse Casino</div>
+    <div class="nav-label">Finance</div>
+    <div class="nav-item" onclick="showPanel('retention',this)"><span class="nav-icon">📈</span>Rétention <span class="nav-badge" id="retBadge">—</span></div>
+    <div class="nav-item" onclick="showPanel('retraits',this)"><span class="nav-icon">🏦</span>Retraits <span class="nav-badge" id="retBadgeCount" style="background:var(--amber);color:#000;">0</span></div>
+    <div class="nav-item" onclick="showPanel('recharges',this)"><span class="nav-icon">💳</span>Recharges <span class="nav-badge" id="rechBadgeCount" style="background:var(--green);color:#000;">0</span></div>
+    <div class="nav-item" onclick="showPanel('koni',this)"><span class="nav-icon">⭐</span>Gestion Koni</div>
+    <div class="nav-item" onclick="showPanel('finlog',this)"><span class="nav-icon">📄</span>Logs Financiers</div>
+    <div class="nav-item" onclick="showPanel('subprofiles',this)"><span class="nav-icon">🔐</span>Sous-profils</div>
+    <div class="nav-item" onclick="showPanel('datatransfer',this)"><span class="nav-icon">🔄</span>Transfert données</div>
+    <div class="nav-item" onclick="showPanel('settings',this)"><span class="nav-icon">⚙️</span>Paramètres</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div>Admin connecté</div>
+    <div style="color:var(--amber);margin-top:3px;" id="adminTime"></div>
+    <button class="logout-btn" onclick="adminLogout()">[ DÉCONNEXION ]</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbarTitle">DASHBOARD</div>
+    <div class="topbar-time">POKO CASINO &nbsp;|&nbsp; <span class="topbar-clock" id="clock"></span></div>
+  </div>
+  <div class="content">
+
+    <!-- ══════════ DASHBOARD ══════════ -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="kpi-row" id="kpiRow"></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Activité récente <span id="feedCount">—</span></div>
+          <div class="feed" id="activityFeed"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Parties par joueur <span>7 derniers jours</span></div>
+          <div class="bar-chart" id="barChart"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Top joueurs par gains <span>Classement global</span></div>
+        <table class="players-table" id="dashTopTable"></table>
+      </div>
+    </div>
+
+    <!-- ══════════ PLAYERS ══════════ -->
+    <div class="panel" id="panel-players">
+      <div class="section-hdr"><h2>Gestion des Joueurs</h2></div>
+      <div class="players-toolbar">
+        <input class="search-input" type="text" id="playerSearch" placeholder="Rechercher un joueur..." oninput="renderPlayers()">
+        <button class="filter-btn active" id="fAll" onclick="setFilter('all')">Tous</button>
+        <button class="filter-btn" id="fActive" onclick="setFilter('active')">Actifs</button>
+        <button class="filter-btn" id="fBanned" onclick="setFilter('banned')">Bannis</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="players-table" id="playersTable">
+          <thead><tr>
+            <th>Avatar</th><th>Pseudo</th><th>Solde</th><th>Parties</th><th>Victoires</th><th>RTP</th><th>Table max</th><th>Statut</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="playersTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════ RTP ══════════ -->
+    <div class="panel" id="panel-rtp">
+      <div class="section-hdr"><h2>Contrôle RTP — Distribution des Cartes</h2></div>
+      <div class="rtp-header">
+        <span style="font-size:20px;">⚠️</span>
+        <div class="rtp-warning">
+          <strong>CONTRÔLE AVANCÉ :</strong> Ces paramètres modifient la distribution des cartes en temps réel.<br>
+          50% = distribution équitable · &gt;50% = avantage joueur · &lt;50% = désavantage joueur
+        </div>
+      </div>
+
+      <!-- Global presets -->
+      <div class="rtp-global">
+        <div class="rtp-global-title">
+          Préréglages globaux — tous les joueurs humains
+          <span style="font-size:9px;color:var(--text-dim);">APPLIQUÉ SUR TOUS</span>
+        </div>
+        <div class="rtp-preset-row">
+          <button class="rtp-preset p-neutre" onclick="applyGlobalPreset('neutre',50,this)">⚖️ NEUTRE (50%)</button>
+          <button class="rtp-preset p-fav" onclick="applyGlobalPreset('fav',70,this)">🍀 FAVORISÉ (70%)</button>
+          <button class="rtp-preset p-defav" onclick="applyGlobalPreset('defav',35,this)">📉 DÉFAVORISÉ (35%)</button>
+          <button class="rtp-preset p-ruine" onclick="applyGlobalPreset('ruine',15,this)">💀 RUINÉ (15%)</button>
+        </div>
+      </div>
+
+      <!-- Individual players -->
+      <div class="card-title" style="margin-bottom:14px;">Contrôle individuel par joueur</div>
+      <div class="rtp-players" id="rtpPlayers"></div>
+      <div style="margin-top:20px;display:flex;gap:12px;align-items:center;">
+        <button class="save-btn" onclick="saveRTP()">ENREGISTRER LES PARAMÈTRES RTP</button>
+        <span id="rtpSaveMsg" style="font-size:10px;color:var(--green);display:none;">✓ Paramètres sauvegardés</span>
+      </div>
+      <div id="rtpConflictWarn" style="display:none;margin-top:16px;"></div>
+    </div>
+
+    <!-- ══════════ DIFFICULTY ══════════ -->
+    <div class="panel" id="panel-difficulty">
+      <div class="section-hdr"><h2>Difficulté de l'IA</h2></div>
+      <div class="diff-grid">
+        <div class="diff-card d-easy selected" onclick="selectDiff('easy',this)">
+          <div class="diff-selected-tag">ACTIF</div>
+          <div class="diff-icon">🐣</div>
+          <div class="diff-name d-easy">DÉBUTANT</div>
+          <div class="diff-desc">L'IA joue aléatoirement.<br>Aucune stratégie. Erreurs fréquentes.</div>
+        </div>
+        <div class="diff-card d-mid" onclick="selectDiff('mid',this)">
+          <div class="diff-selected-tag">ACTIF</div>
+          <div class="diff-icon">🦊</div>
+          <div class="diff-name d-mid">NORMAL</div>
+          <div class="diff-desc">L'IA joue correctement.<br>Stratégie basique. Quelques erreurs.</div>
+        </div>
+        <div class="diff-card d-hard" onclick="selectDiff('hard',this)">
+          <div class="diff-selected-tag">ACTIF</div>
+          <div class="diff-icon">🐺</div>
+          <div class="diff-name d-hard">EXPERT</div>
+          <div class="diff-desc">L'IA mémorise les cartes jouées.<br>Stratégie optimale. Très agressif.</div>
+        </div>
+        <div class="diff-card d-god" onclick="selectDiff('god',this)">
+          <div class="diff-selected-tag">ACTIF</div>
+          <div class="diff-icon">👁️</div>
+          <div class="diff-name d-god">DIVIN</div>
+          <div class="diff-desc">L'IA connaît toutes les cartes.<br>Imbattable. Joue toujours parfaitement.</div>
+        </div>
+      </div>
+
+      <div class="diff-params card">
+        <div class="card-title">Paramètres fins de l'IA <span id="diffParamsLabel">DÉBUTANT</span></div>
+        <div class="param-row">
+          <div class="param-label">Fréquence de CASSÉ optimal<small>Probabilité que l'IA casse quand elle peut</small></div>
+          <input class="param-slider" type="range" id="pCasse" min="0" max="100" value="30" oninput="updateParam(this,'pCasseVal')">
+          <div class="param-val" id="pCasseVal">30%</div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">Mémoire des cartes jouées<small>% de cartes dont l'IA se souvient</small></div>
+          <input class="param-slider" type="range" id="pMemory" min="0" max="100" value="20" oninput="updateParam(this,'pMemoryVal')">
+          <div class="param-val" id="pMemoryVal">20%</div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">Agressivité (casser tôt)<small>Tendance à jouer haut dès le début</small></div>
+          <input class="param-slider" type="range" id="pAggro" min="0" max="100" value="20" oninput="updateParam(this,'pAggroVal')">
+          <div class="param-val" id="pAggroVal">20%</div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">Délai de réponse simulé<small>Temps de "réflexion" de l'IA (ms)</small></div>
+          <input class="param-slider" type="range" id="pDelay" min="300" max="3000" value="1200" oninput="updateParam(this,'pDelayVal','ms')">
+          <div class="param-val" id="pDelayVal">1200ms</div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="save-btn" onclick="saveDifficulty()">APPLIQUER LA DIFFICULTÉ</button>
+          <span id="diffSaveMsg" style="font-size:10px;color:var(--green);margin-left:14px;display:none;">✓ Difficulté sauvegardée</span>
+        </div>
+        <div id="diffConflictWarn" style="display:none;margin-top:16px;"></div>
+      </div>
+    </div>
+
+    <!-- ══════════ LOGS ══════════ -->
+    <div class="panel" id="panel-logs">
+      <div class="section-hdr"><h2>Journal des Parties</h2></div>
+      <div class="log-toolbar">
+        <button class="log-filter active" onclick="filterLog('all',this)">TOUT</button>
+        <button class="log-filter" onclick="filterLog('GAME',this)">PARTIES</button>
+        <button class="log-filter" onclick="filterLog('WIN',this)">VICTOIRES</button>
+        <button class="log-filter" onclick="filterLog('LOSE',this)">DÉFAITES</button>
+        <button class="log-filter" onclick="filterLog('SYS',this)">SYSTÈME</button>
+        <button class="clear-btn" onclick="clearLogs()">EFFACER</button>
+      </div>
+      <div class="log-terminal" id="logTerminal"></div>
+    </div>
+
+
+
+    <!-- ══════════ LOGS FINANCIERS ══════════ -->
+    <div class="panel" id="panel-finlog">
+      <div class="section-hdr">
+        <h2>📄 Logs Financiers</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">SNAPSHOT AUTO TOUTES LES 10 MIN — DÉTAIL DE CHAQUE TRANSACTION</div>
+      </div>
+
+      <!-- Toolbar -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <button class="save-btn" onclick="generateAndSaveFinLog()">↺ GÉNÉRER MAINTENANT</button>
+        <button class="save-btn" style="background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.35);color:var(--green);" onclick="downloadFinLog('today')">⬇ LOG DU JOUR .TXT</button>
+        <button class="save-btn" style="background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.3);color:var(--blue);" onclick="downloadFinLog('all')">⬇ TOUS LES SNAPSHOTS .TXT</button>
+        <div id="finlog-countdown" style="margin-left:auto;font-size:10px;color:var(--text-dim);letter-spacing:2px;font-family:'Orbitron',monospace;"></div>
+      </div>
+
+      <!-- Stats bar -->
+      <div id="finlog-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;"></div>
+
+      <!-- Terminal log -->
+      <pre id="finlog-terminal" style="background:#050505;border:1px solid var(--border);border-radius:4px;padding:18px;font-size:11px;color:rgba(255,255,255,.72);font-family:'Share Tech Mono',monospace;line-height:1.8;overflow-y:auto;max-height:500px;white-space:pre;"></pre>
+
+      <!-- Historique snapshots -->
+      <div style="margin-top:16px;">
+        <div class="card-title" style="margin-bottom:10px;font-size:9px;letter-spacing:3px;color:var(--text-dim);">HISTORIQUE SNAPSHOTS (48 MAX — 8H)</div>
+        <div id="finlog-history" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+    </div>
+
+    <!-- ══════════ TRANSFERT DONNÉES ══════════ -->
+    <div class="panel" id="panel-datatransfer">
+      <div class="section-hdr">
+        <h2>🔄 Transfert de données</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">LOCAL ↔ EN LIGNE</div>
+      </div>
+
+      <div style="background:var(--amber-dim);border:1px solid rgba(230,57,70,.25);padding:14px 18px;margin-bottom:22px;font-size:11px;color:var(--text);letter-spacing:1px;line-height:2;">
+        💡 <strong style="color:var(--amber)">Pourquoi ?</strong> Chaque navigateur/appareil a son propre localStorage.<br>
+        Utilise cet outil pour <strong>exporter</strong> tes données locales en fichier JSON, puis les <strong>importer</strong> sur n'importe quel autre appareil ou déploiement (GitHub Pages, etc.)
+      </div>
+
+      <div class="grid2" style="margin-bottom:24px;">
+
+        <!-- EXPORT -->
+        <div class="card">
+          <div class="card-title">📤 Exporter les données</div>
+          <div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-bottom:16px;line-height:1.9;">
+            Télécharge un fichier <code style="color:var(--amber);background:rgba(230,57,70,.1);padding:1px 5px;">poko_data.json</code> contenant tous les comptes joueurs, paramètres RTP, difficulté et réglages admin.
+          </div>
+          <div id="exportSummary" style="margin-bottom:16px;padding:12px;background:rgba(0,0,0,.3);border:1px solid var(--border);font-size:11px;line-height:2;"></div>
+          <button class="save-btn" onclick="exportData()" style="width:100%;">⬇️ TÉLÉCHARGER poko_data.json</button>
+        </div>
+
+        <!-- IMPORT -->
+        <div class="card">
+          <div class="card-title">📥 Importer des données</div>
+          <div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-bottom:16px;line-height:1.9;">
+            Charge un fichier <code style="color:var(--amber);background:rgba(230,57,70,.1);padding:1px 5px;">poko_data.json</code> exporté depuis un autre appareil. <strong style="color:var(--red)">Les données actuelles seront remplacées.</strong>
+          </div>
+          <div style="margin-bottom:14px;">
+            <input type="file" id="importFile" accept=".json" onchange="previewImport(this)"
+              style="width:100%;padding:10px;background:rgba(230,57,70,.05);border:1px dashed rgba(230,57,70,.3);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;">
+          </div>
+          <div id="importPreview" style="display:none;margin-bottom:14px;padding:12px;background:rgba(0,0,0,.3);border:1px solid var(--border);font-size:11px;line-height:2;"></div>
+          <button class="save-btn" id="importBtn" onclick="importData()" style="width:100%;display:none;">⬆️ IMPORTER ET REMPLACER</button>
+          <div id="importMsg" style="font-size:11px;margin-top:10px;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- DEMO DATA -->
+      <div class="card">
+        <div class="card-title">🎭 Données de démonstration <span>DÉMARRAGE RAPIDE</span></div>
+        <div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-bottom:16px;line-height:1.9;">
+          Injecte des joueurs fictifs avec historique de parties pour tester l'interface admin sans avoir de vrais joueurs. Utile pour une démo en ligne.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="save-btn" onclick="injectDemoData()">🎮 INJECTER LES DONNÉES DE DÉMO</button>
+          <button class="action-btn ban" onclick="clearAllData()" style="padding:10px 16px;">🗑️ TOUT EFFACER</button>
+          <div id="demoMsg" style="font-size:11px;display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ SOUS-PROFILS ══════════ -->
+    <div class="panel" id="panel-subprofiles">
+      <div class="section-hdr">
+        <h2>🔐 Sous-profils Administrateurs</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">ACCÈS RESTREINTS</div>
+      </div>
+
+      <div style="background:var(--amber-dim);border:1px solid rgba(230,57,70,.25);padding:14px 18px;margin-bottom:22px;font-size:11px;color:var(--text);letter-spacing:1px;line-height:1.8;">
+        ⚙️ Créez des sous-comptes admin avec des accès limités à certains modules.<br>
+        Utile pour déléguer la gestion des joueurs ou du reporting sans donner accès au RTP ou aux paramètres sensibles.
+      </div>
+
+      <!-- Créer un sous-profil -->
+      <div class="grid2" style="margin-bottom:24px;">
+        <div class="card">
+          <div class="card-title">➕ Créer un sous-profil</div>
+
+          <!-- Sélecteur de rôle avec presets -->
+          <div class="field" style="margin-bottom:16px;">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:10px;">Rôle — Génération rapide</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+              <button onclick="selectSpRole('moderateur',this)" class="sp-role-btn" style="padding:10px 8px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);color:var(--blue);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:2px;text-align:left;">
+                <div style="font-size:12px;margin-bottom:3px;">🛡 MODÉRATEUR</div>
+                <div style="font-size:9px;opacity:.6;">Joueurs · Journal</div>
+              </button>
+              <button onclick="selectSpRole('comptable',this)" class="sp-role-btn" style="padding:10px 8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:2px;text-align:left;">
+                <div style="font-size:12px;margin-bottom:3px;">💰 COMPTABLE</div>
+                <div style="font-size:9px;opacity:.6;">Finances · Logs · Koni</div>
+              </button>
+              <button onclick="selectSpRole('admin',this)" class="sp-role-btn" style="padding:10px 8px;background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.3);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:2px;text-align:left;">
+                <div style="font-size:12px;margin-bottom:3px;">⚡ ADMIN</div>
+                <div style="font-size:9px;opacity:.6;">Tout sauf RTP · Paramètres</div>
+              </button>
+              <button onclick="selectSpRole('custom',this)" class="sp-role-btn" style="padding:10px 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:2px;text-align:left;">
+                <div style="font-size:12px;margin-bottom:3px;">✎ PERSONNALISÉ</div>
+                <div style="font-size:9px;opacity:.6;">Sélection manuelle</div>
+              </button>
+            </div>
+            <div id="sp-role-selected" style="font-size:9px;color:var(--text-dim);margin-top:8px;letter-spacing:2px;"></div>
+          </div>
+
+          <div class="field" style="margin-bottom:14px;">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:7px;">Identifiant</div>
+            <input type="text" id="sp-user" placeholder="ex: superviseur1" style="width:100%;padding:10px 14px;background:rgba(230,57,70,.05);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;">
+          </div>
+          <div class="field" style="margin-bottom:6px;">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:7px;">Mot de passe</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="sp-pass" placeholder="••••••••" style="flex:1;padding:10px 14px;background:rgba(230,57,70,.05);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;">
+              <button onclick="generateSpPassword()" style="padding:10px 14px;background:rgba(255,179,0,.1);border:1px solid rgba(255,179,0,.3);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">⚙ AUTO</button>
+            </div>
+          </div>
+          <!-- Zone copie identifiants -->
+          <div id="sp-credentials-box" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:2px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--green);margin-bottom:6px;">IDENTIFIANTS GÉNÉRÉS</div>
+            <div id="sp-credentials-text" style="font-size:12px;color:var(--text);line-height:1.8;font-family:'Share Tech Mono',monospace;"></div>
+            <button onclick="copySpCredentials()" style="margin-top:8px;padding:4px 12px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;cursor:pointer;">📋 COPIER</button>
+          </div>
+
+          <div class="field" style="margin-bottom:16px;">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:10px;">Accès autorisés</div>
+            <div id="sp-perms" style="display:flex;flex-direction:column;gap:6px;">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="dashboard" checked><span class="toggle-track"></span></label>
+                📊 Dashboard
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="players"><span class="toggle-track"></span></label>
+                👥 Gestion Joueurs
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="rtp"><span class="toggle-track"></span></label>
+                🎰 Contrôle RTP
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="difficulty"><span class="toggle-track"></span></label>
+                🤖 Difficulté IA
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="logs"><span class="toggle-track"></span></label>
+                📋 Journal Parties
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="finlog"><span class="toggle-track"></span></label>
+                📄 Logs Financiers
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="caisse"><span class="toggle-track"></span></label>
+                💵 Caisse Casino
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="retention"><span class="toggle-track"></span></label>
+                📈 Rétention
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="retraits"><span class="toggle-track"></span></label>
+                🏦 Retraits
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="recharges"><span class="toggle-track"></span></label>
+                💳 Recharges
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="koni"><span class="toggle-track"></span></label>
+                ⭐ Gestion Koni
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:var(--text);">
+                <label class="toggle"><input type="checkbox" name="perm" value="settings"><span class="toggle-track"></span></label>
+                ⚙️ Paramètres
+              </label>
+            </div>
+          </div>
+          <button class="save-btn" onclick="createSubProfile()" style="width:100%;">CRÉER LE SOUS-PROFIL</button>
+          <div id="sp-msg" style="font-size:11px;margin-top:10px;display:none;"></div>
+        </div>
+
+        <!-- Liste sous-profils -->
+        <div class="card">
+          <div class="card-title">👥 Sous-profils existants <span id="sp-count">—</span></div>
+          <div id="sp-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ SETTINGS ══════════ -->
+    <div class="panel" id="panel-settings">
+      <div class="section-hdr"><h2>Paramètres Globaux</h2></div>
+      <div class="settings-grid">
+
+        <!-- Groupe 1 : Jeu — Règles -->
+        <div class="setting-group">
+          <div class="setting-title">Jeu — Règles & Bonus</div>
+          <div class="setting-row">
+            <div class="setting-key">Mise minimale (FCFA)<small>Minimum requis pour jouer</small></div>
+            <input class="num-input" type="number" id="cfg-minBet" value="50">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Mise maximale (FCFA)<small>Plafond par partie</small></div>
+            <input class="num-input" type="number" id="cfg-maxBet" value="10000">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Bonus de bienvenue (FCFA)<small>Offert à l'inscription</small></div>
+            <input class="num-input" type="number" id="cfg-welcomeBonus" value="5000">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Bonus quotidien Koni<small>Réclamé une fois par jour</small></div>
+            <input class="num-input" type="number" id="cfg-dailyBonus" value="500">
+          </div>
+        </div>
+
+        <!-- Groupe 2 : Fonctionnalités -->
+        <div class="setting-group">
+          <div class="setting-title">Jeu — Fonctionnalités</div>
+          <div class="setting-row">
+            <div class="setting-key">Inscriptions ouvertes<small>Autoriser les nouveaux comptes</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-register" checked><span class="toggle-track"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">KIN activé par défaut<small>Option pré-cochée dans le menu</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-kin" checked><span class="toggle-track"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Journal de partie visible<small>Montrer le log au joueur</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-showLog" checked><span class="toggle-track"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Animations activées<small>Cartes volantes, effets visuels</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-anims" checked><span class="toggle-track"></span></label>
+          </div>
+        </div>
+
+        <!-- Groupe 3 : RTP par niveau -->
+        <div class="setting-group">
+          <div class="setting-title">RTP — Valeurs par Niveau</div>
+          <div class="setting-row">
+            <div class="setting-key">RTP Moké 🪵<small>Nouveaux joueurs (défaut : 65)</small></div>
+            <input class="num-input" type="number" id="cfg-rtpMoke" value="65" min="10" max="95">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">RTP Makala 👑<small>Joueurs élite (défaut : 18)</small></div>
+            <input class="num-input" type="number" id="cfg-rtpMakala" value="18" min="5" max="70">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">RTP auto-ajustement<small>Recalcul après chaque partie</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-rtpAuto" checked><span class="toggle-track"></span></label>
+          </div>
+          <div style="margin-top:10px;padding:8px 10px;background:rgba(255,179,0,.06);border:1px solid rgba(255,179,0,.2);font-size:9px;color:var(--text-dim);letter-spacing:1px;line-height:1.7;">
+            Monéné et Koni : calculés dynamiquement selon le winRate. Réglables individuellement dans le module RTP.
+          </div>
+        </div>
+
+        <!-- Groupe 4 : Seuils de niveaux -->
+        <div class="setting-group">
+          <div class="setting-title">Niveaux — Seuils de Progression</div>
+          <div class="setting-row">
+            <div class="setting-key">Durée mode Moké (jours)<small>Avant passage automatique Monéné</small></div>
+            <input class="num-input" type="number" id="cfg-mokeJours" value="15" min="1" max="90">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Seuil Monéné 🔥 (FCFA)<small>Recharges cumulées requises</small></div>
+            <input class="num-input" type="number" id="cfg-seuilMonene" value="5000" min="500">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Seuil Koni 🌟 (FCFA)<small>Recharges cumulées requises</small></div>
+            <input class="num-input" type="number" id="cfg-seuilKoni" value="15000" min="1000">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Seuil Makala 👑 (FCFA)<small>Recharges cumulées requises</small></div>
+            <input class="num-input" type="number" id="cfg-seuilMakala" value="30000" min="5000">
+          </div>
+        </div>
+
+        <!-- Groupe 5 : Limites financières -->
+        <div class="setting-group">
+          <div class="setting-title">Finances — Limites Transactions</div>
+          <div class="setting-row">
+            <div class="setting-key">Recharge minimum (FCFA)<small>Dépôt minimal accepté</small></div>
+            <input class="num-input" type="number" id="cfg-rechargeMin" value="500" min="100">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Recharge maximum/transaction<small>Plafond par dépôt</small></div>
+            <input class="num-input" type="number" id="cfg-rechargeMax" value="500000">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Retrait minimum (FCFA)<small>Seuil minimal de retrait</small></div>
+            <input class="num-input" type="number" id="cfg-retraitMin" value="1000" min="100">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Retrait maximum/jour (FCFA)<small>Plafond journalier par joueur</small></div>
+            <input class="num-input" type="number" id="cfg-retraitMax" value="200000">
+          </div>
+        </div>
+
+        <!-- Groupe 6 : Logs financiers -->
+        <div class="setting-group">
+          <div class="setting-title">Logs Financiers — Configuration</div>
+          <div class="setting-row">
+            <div class="setting-key">Intervalle snapshot (min)<small>Fréquence de génération auto</small></div>
+            <input class="num-input" type="number" id="cfg-finlogInterval" value="10" min="1" max="60">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Snapshots conservés (max)<small>Historique en mémoire localStorage</small></div>
+            <input class="num-input" type="number" id="cfg-finlogMax" value="48" min="10" max="200">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Génération auto active<small>Désactiver pour économiser la mémoire</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-finlogAuto" checked><span class="toggle-track"></span></label>
+          </div>
+        </div>
+
+        <!-- Groupe 7 : Mode maintenance -->
+        <div class="setting-group">
+          <div class="setting-title">Mode Maintenance</div>
+          <div class="setting-row">
+            <div class="setting-key">Maintenance activée<small>Bloque l'accès aux joueurs</small></div>
+            <label class="toggle"><input type="checkbox" id="cfg-maintenance"><span class="toggle-track"></span></label>
+          </div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+            <div class="setting-key">Message affiché aux joueurs<small>Visible sur la page d'accueil</small></div>
+            <textarea id="cfg-maintenanceMsg" placeholder="POKO est en maintenance. Retour dans X minutes." style="width:100%;padding:10px;background:rgba(230,57,70,.05);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;resize:vertical;min-height:60px;letter-spacing:1px;line-height:1.6;"></textarea>
+          </div>
+          <div id="cfg-maintenance-status" style="margin-top:8px;font-size:9px;letter-spacing:2px;"></div>
+        </div>
+
+        <!-- Groupe 8 : Sécurité Admin -->
+        <div class="setting-group">
+          <div class="setting-title">Sécurité Admin</div>
+          <div class="setting-row">
+            <div class="setting-key">Nouveau mot de passe admin<small>Laissez vide pour ne pas changer</small></div>
+            <input class="num-input" type="password" id="cfg-newpass" placeholder="••••••" style="width:120px;">
+          </div>
+          <div class="setting-row">
+            <div class="setting-key">Timeout session (min)<small>Déconnexion auto si inactif</small></div>
+            <input class="num-input" type="number" id="cfg-sessionTimeout" value="5" min="1" max="480">
+          </div>
+        </div>
+
+      </div>
+
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <button class="save-btn" onclick="saveSettings()">ENREGISTRER TOUT</button>
+        <button class="save-btn" onclick="resetSettings()" style="background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--red);">↺ VALEURS PAR DÉFAUT</button>
+        <span id="settingsSaveMsg" style="font-size:10px;color:var(--green);display:none;letter-spacing:2px;">✓ PARAMÈTRES SAUVEGARDÉS</span>
+      </div>
+    </div>
+
+
+    <!-- ══════════ CAISSE CASINO ══════════ -->
+    <div class="panel" id="panel-caisse">
+      <div class="section-hdr">
+        <h2>💵 Caisse du Casino</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">VOTRE P&L EN TEMPS RÉEL</div>
+      </div>
+
+      <!-- Solde casino hero -->
+      <div id="caisseSoldeHero" style="
+        background:linear-gradient(135deg,rgba(255,179,0,.08) 0%,rgba(0,0,0,.4) 100%);
+        border:1px solid rgba(255,179,0,.3);padding:28px 32px;margin-bottom:24px;
+        display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;
+      ">
+        <div>
+          <div style="font-size:9px;letter-spacing:4px;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;">Solde Casino</div>
+          <div id="caisseSoldeVal" style="font-family:'Orbitron',monospace;font-size:42px;font-weight:900;color:var(--amber);text-shadow:0 0 20px var(--amber-glow);letter-spacing:3px;">—</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:6px;letter-spacing:2px;">FCFA VIRTUELS</div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div style="text-align:center;">
+            <div style="font-size:8px;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:6px;">Revenus jeu</div>
+            <div id="caisseEncaisse" style="font-family:'Orbitron',monospace;font-size:20px;color:var(--green);">—</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:3px;">Pertes joueurs</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;letter-spacing:3px;color:var(--red);text-transform:uppercase;margin-bottom:6px;">Gains versés</div>
+            <div id="caisseDecaisse" style="font-family:'Orbitron',monospace;font-size:20px;color:var(--red);">—</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:3px;">Victoires joueurs</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;letter-spacing:3px;color:var(--blue);text-transform:uppercase;margin-bottom:6px;">Recharges réelles</div>
+            <div id="caisseEmise" style="font-family:'Orbitron',monospace;font-size:20px;color:var(--blue);">—</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:3px;">Argent réel entré</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:6px;">Retraits réels</div>
+            <div id="caisseRetraits" style="font-family:'Orbitron',monospace;font-size:20px;color:var(--amber);">—</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:3px;">Argent réel sorti</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;letter-spacing:3px;color:var(--purple);text-transform:uppercase;margin-bottom:6px;">Coût Koni</div>
+            <div id="caisseKoniCost" style="font-family:'Orbitron',monospace;font-size:20px;color:var(--purple);">—</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:3px;">Conversions Koni</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:6px;">Marge nette</div>
+            <div id="caisseMarge" style="font-family:'Orbitron',monospace;font-size:20px;color:var(--green);">—</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:3px;">% sur revenus jeu</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="kpi-row" id="caisseKpi"></div>
+
+      <!-- 3 Compartiments -->
+      <div style="font-size:9px;letter-spacing:4px;color:var(--text-dim);text-transform:uppercase;margin-bottom:14px;">Répartition de la marge — 3 compartiments</div>
+      <div class="caisses-grid" id="troiscaisses"></div>
+
+      <div class="grid2" style="margin-bottom:24px;">
+        <!-- Émission de monnaie virtuelle -->
+        <div class="card">
+          <div class="card-title">🏦 Émission de monnaie virtuelle <span>BANQUE CENTRALE</span></div>
+          <div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-bottom:16px;line-height:1.8;">
+            Injectez de la monnaie dans l'économie du jeu.<br>
+            Ces FCFA virtuels s'ajoutent au solde des joueurs sélectionnés.
+          </div>
+
+          <!-- Montant -->
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:8px;">Montant à émettre</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <button class="action-btn view" onclick="setEmit(500)">500</button>
+              <button class="action-btn view" onclick="setEmit(1000)">1 000</button>
+              <button class="action-btn view" onclick="setEmit(5000)">5 000</button>
+              <button class="action-btn view" onclick="setEmit(10000)">10 000</button>
+              <button class="action-btn view" onclick="setEmit(50000)">50 000</button>
+            </div>
+            <input type="number" id="emitAmount" placeholder="Montant FCFA" style="width:100%;padding:10px 14px;background:rgba(255,179,0,.05);border:1px solid var(--border);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:16px;outline:none;" value="1000">
+          </div>
+
+          <!-- Cible -->
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:8px;">Destinataire</div>
+            <select id="emitTarget" style="width:100%;padding:10px 14px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;cursor:pointer;">
+              <option value="all">Tous les joueurs actifs</option>
+            </select>
+          </div>
+
+          <div style="font-size:10px;color:rgba(255,150,50,.7);margin-bottom:14px;letter-spacing:1px;padding:8px 12px;background:rgba(255,150,50,.06);border-left:2px solid rgba(255,150,50,.4);">
+            ⚠️ Ces fonds sont émis hors mise — ils n'impactent pas votre caisse directement mais augmentent la liquidité des joueurs.
+          </div>
+
+          <button class="save-btn" onclick="emitMoney()" style="width:100%;">ÉMETTRE LA MONNAIE</button>
+          <div id="emitMsg" style="font-size:11px;margin-top:10px;display:none;"></div>
+        </div>
+
+        <!-- Flux de trésorerie -->
+        <div class="card">
+          <div class="card-title">📈 Cash Flow — Flux de trésorerie <span id="cfPeriod">TOUT</span></div>
+          <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+            <button class="log-filter active" id="cf7" onclick="setCFPeriod(7,this)">7J</button>
+            <button class="log-filter" id="cf30" onclick="setCFPeriod(30,this)">30J</button>
+            <button class="log-filter" id="cfAll" onclick="setCFPeriod(0,this)">TOUT</button>
+          </div>
+          <div id="cashFlowList" style="max-height:260px;overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      <!-- Détail P&L par joueur -->
+      <div class="card">
+        <div class="card-title">🎯 P&L par joueur — Rentabilité individuelle <span>Qui vous rapporte le plus</span></div>
+        <table class="players-table" id="pnlTable">
+          <thead><tr>
+            <th>Joueur</th>
+            <th>Revenus jeu</th>
+            <th>Gains versés</th>
+            <th>Recharges</th>
+            <th>Retraits</th>
+            <th>Coût Koni</th>
+            <th>P&L Net</th>
+            <th>Statut</th>
+          </tr></thead>
+          <tbody id="pnlTbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Historique des transactions casino -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-title">🧾 Grand livre — Toutes les transactions <span id="ledgerCount"></span></div>
+        <div id="ledgerList" style="max-height:320px;overflow-y:auto;font-size:11px;"></div>
+      </div>
+
+      <!-- ── MODULE : Revenu par table ── -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-title">🎴 Revenu par table <span>Nganda · Mboka · Ndeko · Mwana Congo</span></div>
+        <table class="players-table" id="tableRevenueTable">
+          <thead><tr>
+            <th>Table</th><th>Mise</th><th>Parties jouées</th>
+            <th>Encaissé</th><th>Décaissé</th><th>Revenu net</th><th>House Edge</th>
+          </tr></thead>
+          <tbody id="tableRevenueTbody"></tbody>
+        </table>
+      </div>
+
+      <!-- ── MODULE : Économie Koni ── -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-title">⭐ Économie Koni <span>Monnaie de fidélité</span></div>
+        <div id="koniKpiRow" class="kpi-row" style="margin-bottom:14px;"></div>
+        <table class="players-table" id="koniTable">
+          <thead><tr>
+            <th>Joueur</th><th>Koni en stock</th><th>Valeur FCFA</th><th>Koni convertis</th><th>Statut</th>
+          </tr></thead>
+          <tbody id="koniTbody"></tbody>
+        </table>
+      </div>
+
+      <!-- ── MODULE : Alertes solde faible ── -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-title">⚠️ Alertes — Joueurs en difficulté <span>Solde insuffisant pour jouer</span></div>
+        <div id="alertesSolde"></div>
+      </div>
+    </div>
+
+    <!-- ══════════ KONI ══════════ -->
+    <div class="panel" id="panel-koni">
+      <div class="section-hdr">
+        <h2>⭐ Gestion Koni</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">MONNAIE DE FIDÉLITÉ</div>
+      </div>
+
+      <!-- KPIs live -->
+      <div class="kpi-row" id="koniAdminKpi"></div>
+
+      <div class="grid2">
+        <!-- ── Paramètres d'émission ── -->
+        <div class="card">
+          <div class="card-title">⚙️ Paramètres d'émission <span>Gain & conversion</span></div>
+
+          <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,179,0,.06);">
+            <div class="setting-key">Koni gagnés par 100 FCFA rechargés
+              <small style="display:block;font-size:9px;color:var(--text-dim);margin-top:2px;">Actuellement : <span id="kCurPer100" style="color:var(--amber)"></span> Koni</small>
+            </div>
+            <input class="num-input" type="number" id="kPerHundred" min="0" max="50" step="1" style="width:80px;">
+          </div>
+
+          <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,179,0,.06);">
+            <div class="setting-key">Valeur d'un Koni (FCFA)
+              <small style="display:block;font-size:9px;color:var(--text-dim);margin-top:2px;">Actuellement : 1 Koni = <span id="kCurRate" style="color:var(--amber)"></span> FCFA</small>
+            </div>
+            <input class="num-input" type="number" id="kRate" min="0.1" max="10" step="0.1" style="width:80px;">
+          </div>
+
+          <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,179,0,.06);">
+            <div class="setting-key">Koni minimum pour convertir
+              <small style="display:block;font-size:9px;color:var(--text-dim);margin-top:2px;">Actuellement : <span id="kCurMin" style="color:var(--amber)"></span> Koni</small>
+            </div>
+            <input class="num-input" type="number" id="kMinConvert" min="0" max="5000" step="50" style="width:80px;">
+          </div>
+
+          <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+            <div class="setting-key">Expiration des Koni (jours)
+              <small style="display:block;font-size:9px;color:var(--text-dim);margin-top:2px;">Actuellement : <span id="kCurExpiry" style="color:var(--amber)"></span> jours</small>
+            </div>
+            <input class="num-input" type="number" id="kExpiry" min="7" max="365" step="1" style="width:80px;">
+          </div>
+        </div>
+
+        <!-- ── Paramètres bonus ── -->
+        <div class="card">
+          <div class="card-title">🎁 Paramètres bonus <span>Bienvenue & quotidien</span></div>
+
+          <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,179,0,.06);">
+            <div class="setting-key">Bonus de bienvenue (FCFA)
+              <small style="display:block;font-size:9px;color:var(--text-dim);margin-top:2px;">Offert à chaque nouvelle inscription</small>
+            </div>
+            <input class="num-input" type="number" id="kWelcome" min="0" max="10000" step="50" style="width:80px;">
+          </div>
+
+          <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,179,0,.06);">
+            <div class="setting-key">Bonus quotidien (Koni)
+              <small style="display:block;font-size:9px;color:var(--text-dim);margin-top:2px;">Réclamé une fois par jour par le joueur</small>
+            </div>
+            <input class="num-input" type="number" id="kDaily" min="0" max="500" step="5" style="width:80px;">
+          </div>
+
+          <!-- Simulateur impact -->
+          <div style="margin-top:20px;padding:14px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);">
+            <div style="font-size:9px;letter-spacing:3px;color:var(--purple);text-transform:uppercase;margin-bottom:10px;">Simulateur — Impact recharge</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+              <span style="font-size:11px;color:var(--text-dim);">Si un joueur recharge</span>
+              <input type="number" id="kSimAmount" value="2500" style="width:90px;padding:6px 10px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;" oninput="updateKoniSim()">
+              <span style="font-size:11px;color:var(--text-dim);">FCFA</span>
+            </div>
+            <div id="koniSimResult" style="font-size:11px;color:var(--text-dim);line-height:2;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <button class="save-btn" onclick="saveKoniConfig()">ENREGISTRER LES PARAMÈTRES</button>
+          <button class="action-btn view" onclick="resetKoniConfig()">REMETTRE PAR DÉFAUT</button>
+          <span id="koniSaveMsg" style="font-size:10px;color:var(--green);display:none;">✓ Paramètres sauvegardés — actifs au prochain chargement de page</span>
+        </div>
+        <div style="margin-top:12px;font-size:10px;color:var(--text-dim);letter-spacing:1px;padding:10px;background:rgba(255,179,0,.04);border-left:2px solid rgba(255,179,0,.2);">
+          ℹ️ Les modifications s'appliquent dès le prochain chargement du jeu ou du compte joueur.
+        </div>
+      </div>
+
+      <!-- Joueurs avec Koni à risque d'expiration -->
+      <div class="card">
+        <div class="card-title">⏰ Koni proches de l'expiration <span>Dans les 10 prochains jours</span></div>
+        <div id="koniExpiryList"></div>
+      </div>
+    </div>
+
+    <!-- ══════════ RÉTENTION ══════════ -->
+    <div class="panel" id="panel-retention">
+      <div class="section-hdr">
+        <h2>📈 Taux de rétention</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">FIDÉLITÉ DES JOUEURS</div>
+      </div>
+      <div class="kpi-row" id="retKpiRow"></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Joueurs actifs récemment <span id="retPeriodLabel">7 JOURS</span></div>
+          <div style="display:flex;gap:6px;margin-bottom:14px;">
+            <button class="log-filter active" onclick="renderRetention(7,this)">7J</button>
+            <button class="log-filter" onclick="renderRetention(30,this)">30J</button>
+            <button class="log-filter" onclick="renderRetention(0,this)">TOUT</button>
+          </div>
+          <div id="retActiveList" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Joueurs inactifs <span>Aucune partie récente</span></div>
+          <div id="retInactiveList" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Classement fidélité <span>Par nombre de parties</span></div>
+        <table class="players-table">
+          <thead><tr><th>#</th><th>Joueur</th><th>Parties</th><th>Victoires</th><th>Dernière partie</th><th>Fréquence</th><th>Profil</th></tr></thead>
+          <tbody id="retRankTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════ RETRAITS ══════════ -->
+    <div class="panel" id="panel-retraits">
+      <div class="section-hdr">
+        <h2>🏦 Gestion des retraits</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">VALIDATION MANUELLE</div>
+      </div>
+      <div class="kpi-row" id="retKpi"></div>
+
+      <!-- Formulaire retrait manuel -->
+      <div class="grid2" style="margin-bottom:20px;">
+        <div class="card">
+          <div class="card-title">➕ Créer une demande de retrait <span>Manuel admin</span></div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">JOUEUR</div>
+            <select id="retJoueur" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;"></select>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">MONTANT (FCFA)</div>
+            <input id="retMontant" type="number" placeholder="Ex: 5000" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:14px;outline:none;">
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">MÉTHODE</div>
+            <select id="retMethode" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;">
+              <option value="orange">Orange Money</option>
+              <option value="airtel">Airtel Money</option>
+              <option value="especes">Espèces</option>
+            </select>
+          </div>
+          <button class="save-btn" onclick="creerRetrait()" style="width:100%;">ENREGISTRER LA DEMANDE</button>
+          <div id="retMsg" style="font-size:11px;margin-top:8px;display:none;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">ℹ️ Règles de retrait</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:2;letter-spacing:1px;">
+            <div>• Retrait minimum : <span style="color:var(--amber)">1 000 FCFA</span></div>
+            <div>• Délai de traitement : <span style="color:var(--amber)">24–48h</span></div>
+            <div>• Frais : <span style="color:var(--amber)">0%</span> (Phase 1)</div>
+            <div>• Solde déduit à l'approbation</div>
+            <div>• Refus = solde restauré</div>
+            <div style="margin-top:12px;padding:10px;background:rgba(255,179,0,.06);border-left:2px solid var(--amber);">
+              Phase 2 : intégration Mobile Money automatique
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste des demandes -->
+      <div class="card">
+        <div class="card-title">📋 Demandes en cours <span id="retListCount"></span></div>
+        <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+          <button class="log-filter active" id="rfAll" onclick="filterRetraits('all',this)">TOUTES</button>
+          <button class="log-filter" id="rfPend" onclick="filterRetraits('pending',this)">EN ATTENTE</button>
+          <button class="log-filter" id="rfOk" onclick="filterRetraits('approved',this)">APPROUVÉES</button>
+          <button class="log-filter" id="rfNo" onclick="filterRetraits('refused',this)">REFUSÉES</button>
+        </div>
+        <table class="players-table">
+          <thead><tr><th>Date</th><th>Joueur</th><th>Montant</th><th>Méthode</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody id="retraitsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════ RECHARGES ══════════ -->
+    <div class="panel" id="panel-recharges">
+      <div class="section-hdr">
+        <h2>💳 Recharges en attente</h2>
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;">VALIDATION DES DÉPÔTS</div>
+      </div>
+      <div class="kpi-row" id="rechKpi"></div>
+
+      <!-- Formulaire recharge manuelle -->
+      <div class="grid2" style="margin-bottom:20px;">
+        <div class="card">
+          <div class="card-title">➕ Enregistrer une recharge <span>Manuel admin</span></div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">JOUEUR</div>
+            <select id="rechJoueur" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;"></select>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">MONTANT (FCFA)</div>
+            <input id="rechMontant" type="number" placeholder="Ex: 2500" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:14px;outline:none;">
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">MÉTHODE</div>
+            <select id="rechMethode" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;">
+              <option value="orange">Orange Money</option>
+              <option value="airtel">Airtel Money</option>
+              <option value="especes">Espèces / Cash</option>
+            </select>
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;">RÉFÉRENCE PAIEMENT</div>
+            <input id="rechRef" type="text" placeholder="Ex: OM-2026-XXXXX" style="width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;">
+          </div>
+          <button class="save-btn" onclick="creerRecharge()" style="width:100%;">ENREGISTRER LA RECHARGE</button>
+          <div id="rechMsg" style="font-size:11px;margin-top:8px;display:none;"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">ℹ️ Règles de recharge</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:2;letter-spacing:1px;">
+            <div>• Recharge minimum : <span style="color:var(--amber)">500 FCFA</span></div>
+            <div>• Koni gagnés : <span style="color:var(--amber)">5 Koni / 100 FCFA</span></div>
+            <div>• Solde crédité à l'approbation</div>
+            <div>• Toujours vérifier la référence</div>
+            <div>• Refus = aucune modification du solde</div>
+            <div style="margin-top:12px;padding:10px;background:rgba(34,197,94,.06);border-left:2px solid var(--green);">
+              Phase 2 : webhook Mobile Money automatique
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste des recharges -->
+      <div class="card">
+        <div class="card-title">📋 Historique recharges <span id="rechListCount"></span></div>
+        <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+          <button class="log-filter active" id="rcfAll" onclick="filterRecharges('all',this)">TOUTES</button>
+          <button class="log-filter" id="rcfPend" onclick="filterRecharges('pending',this)">EN ATTENTE</button>
+          <button class="log-filter" id="rcfOk" onclick="filterRecharges('approved',this)">APPROUVÉES</button>
+          <button class="log-filter" id="rcfNo" onclick="filterRecharges('refused',this)">REFUSÉES</button>
+        </div>
+        <table class="players-table">
+          <thead><tr><th>Date</th><th>Joueur</th><th>Montant</th><th>Méthode</th><th>Référence</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody id="rechargesTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /shell -->
+
+<script>
+// ── GUARD ──
+if(!sessionStorage.getItem('poko_admin')){ window.location.href='admin-login.html'; }
+
+// ── Supabase client (même config que auth.js) ──
+const SUPABASE_URL_ADMIN = 'https://agghgyidejzlxidrjswv.supabase.co';
+const SUPABASE_KEY_ADMIN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZ2hneWlkZWp6bHhpZHJqc3d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNzQ3MjcsImV4cCI6MjA4Nzg1MDcyN30.tS050ZrnbmwLWo4sWbt85fyy_em3g7_BjL7PF5acIhg';
+const SB = {
+  headers: { 'Content-Type':'application/json','apikey':SUPABASE_KEY_ADMIN,'Authorization':'Bearer '+SUPABASE_KEY_ADMIN,'Prefer':'return=representation' },
+  async get(table,filters){ try{ const r=await fetch(`${SUPABASE_URL_ADMIN}/rest/v1/${table}?${filters||''}`,{headers:this.headers}); return r.ok?r.json():[];}catch(e){return[];} },
+  async update(table,data,filters){ try{ const r=await fetch(`${SUPABASE_URL_ADMIN}/rest/v1/${table}?${filters}`,{method:'PATCH',headers:{...this.headers,'Prefer':'return=minimal'},body:JSON.stringify(data)}); return r.ok;}catch(e){return false;} },
+  async insert(table,data){ try{ const r=await fetch(`${SUPABASE_URL_ADMIN}/rest/v1/${table}`,{method:'POST',headers:this.headers,body:JSON.stringify(data)}); return r.ok?r.json():null;}catch(e){return null;} },
+  async delete(table,filters){ try{ const r=await fetch(`${SUPABASE_URL_ADMIN}/rest/v1/${table}?${filters}`,{method:'DELETE',headers:this.headers}); return r.ok;}catch(e){return false;} }
+};
+
+// ── CLOCK ──
+function updateClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent=n.toLocaleTimeString('fr-FR');
+  document.getElementById('adminTime').textContent=n.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'});
+}
+setInterval(updateClock,1000); updateClock();
+
+// ── NAVIGATION ──
+const PANEL_TITLES={dashboard:'DASHBOARD',players:'GESTION DES JOUEURS',rtp:'CONTRÔLE RTP',difficulty:'DIFFICULTÉ IA',logs:'JOURNAL DES PARTIES',caisse:'💵 CAISSE DU CASINO',retention:'📈 RÉTENTION',retraits:'🏦 RETRAITS',recharges:'💳 RECHARGES',koni:'⭐ GESTION KONI',settings:'PARAMÈTRES',finlog:'📄 LOGS FINANCIERS'};
+function showPanel(name,el){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+  document.getElementById('topbarTitle').textContent = PANEL_TITLES[name]||name.toUpperCase();
+  if(name==='dashboard') renderDashboard().catch(()=>{});
+  if(name==='players') renderPlayers().catch(()=>{});
+  if(name==='rtp'){ renderRTP().catch(()=>{}); showConflictWarnings(); }
+  if(name==='difficulty') showConflictWarnings();
+  if(name==='logs') renderLogs().catch(()=>{});
+  if(name==='caisse') renderCaisse().catch(()=>{});
+  if(name==='retention') renderRetention(7);
+  if(name==='retraits') renderRetraits();
+  if(name==='recharges') renderRecharges();
+  if(name==='koni') renderKoniPanel();
+  if(name==='subprofiles') renderSubProfiles();
+  if(name==='datatransfer') renderDataTransfer();
+  if(name==='finlog'){ renderFinLog(); startFinLogTimer(); }
+}
+
+// ── DATA ──
+function getUsers(){
+  // Sync fallback (localStorage) pour compatibilité interne
+  try{return Object.values(JSON.parse(localStorage.getItem('poko_users')||'{}'));}catch(e){return [];}
+}
+async function getUsersAsync(){
+  // Phase 1 : localStorage uniquement
+  return getUsers();
+}
+function getAdminSettings(){ try{return JSON.parse(localStorage.getItem('poko_admin_settings')||'{}');}catch(e){return {};} }
+function saveAdminSettings(s){ localStorage.setItem('poko_admin_settings',JSON.stringify(s)); }
+function getAdminLogs(){ try{return JSON.parse(localStorage.getItem('poko_admin_logs')||'[]');}catch(e){return [];} }
+function addAdminLog(type,msg){
+  const l=getAdminLogs(); l.unshift({ts:Date.now(),type,msg}); if(l.length>200)l.splice(200); localStorage.setItem('poko_admin_logs',JSON.stringify(l));
+}
+
+// ── DASHBOARD ──
+async function renderDashboard(){
+  const users=await getUsersAsync();
+  const total=users.reduce((a,u)=>(a+u.totalGames||0),0);
+  const totalWins=users.reduce((a,u)=>(a+u.totalWins||0),0);
+  const totalBalance=users.reduce((a,u)=>(a+u.balance||0),0);
+  const active=users.filter(u=>!u.banned).length;
+
+  document.getElementById('kpiRow').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Joueurs enregistrés</div><div class="kpi-val">${users.length}</div><div class="kpi-sub">${active} actifs</div></div>
+    <div class="kpi green"><div class="kpi-label">Total parties jouées</div><div class="kpi-val">${total}</div><div class="kpi-sub">${totalWins} victoires</div></div>
+    <div class="kpi blue"><div class="kpi-label">Solde total en jeu</div><div class="kpi-val">${totalBalance.toLocaleString('fr-FR')}</div><div class="kpi-sub">FCFA cumulés</div></div>
+    <div class="kpi red"><div class="kpi-label">Taux de victoire moyen</div><div class="kpi-val">${total>0?Math.round(totalWins/total*100):0}%</div><div class="kpi-sub">Global</div></div>
+  `;
+
+  // Activity feed from transactions
+  const feed=document.getElementById('activityFeed');
+  const allTx=[];
+  users.forEach(u=>(u.transactions||[]).forEach(tx=>allTx.push({...tx,username:u.username})));
+  allTx.sort((a,b)=>b.date-a.date);
+  document.getElementById('feedCount').textContent=allTx.length+' événements';
+  feed.innerHTML=allTx.slice(0,20).map(tx=>{
+    const dots={win:'win',loss:'lose',deposit:'join',bonus:'warn',withdraw:'warn'};
+    return `<div class="feed-item">
+      <div class="feed-time">${new Date(tx.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="feed-dot ${dots[tx.type]||'join'}"></div>
+      <div class="feed-text">${tx.username} — ${tx.label}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-dim);font-size:11px;padding:10px 0;">Aucune activité</div>';
+
+  // Bar chart: top 6 users by games
+  const top=users.sort((a,b)=>(b.totalGames||0)-(a.totalGames||0)).slice(0,6);
+  const max=Math.max(...top.map(u=>u.totalGames||1),1);
+  document.getElementById('barChart').innerHTML=top.map(u=>`
+    <div class="bar-col">
+      <div class="bar-val">${u.totalGames||0}</div>
+      <div class="bar" style="height:${Math.round(((u.totalGames||0)/max)*80)+4}px"></div>
+      <div class="bar-lbl">${u.username.slice(0,6)}</div>
+    </div>
+  `).join('');
+
+  // Top table
+  const sorted=users.sort((a,b)=>(b.totalEarned||0)-(a.totalEarned||0)).slice(0,8);
+  document.getElementById('dashTopTable').innerHTML=`
+    <thead><tr><th>#</th><th>Joueur</th><th>Parties</th><th>Victoires</th><th>Gains totaux</th><th>Solde</th></tr></thead>
+    <tbody>${sorted.map((u,i)=>`<tr>
+      <td style="color:var(--amber);font-family:Orbitron,monospace;">${i+1}</td>
+      <td>${u.avatar||'🃏'} ${u.username}</td>
+      <td>${u.totalGames||0}</td>
+      <td style="color:var(--green)">${u.totalWins||0}</td>
+      <td style="color:var(--green)">+${(u.totalEarned||0).toLocaleString('fr-FR')} FCFA</td>
+      <td style="color:var(--amber)">${(u.balance||0).toLocaleString('fr-FR')} FCFA</td>
+    </tr>`).join('')}</tbody>
+  `;
+}
+
+// ── PLAYERS ──
+let playerFilter='all';
+function setFilter(f){ playerFilter=f; ['fAll','fActive','fBanned'].forEach(id=>document.getElementById(id).classList.remove('active')); document.getElementById('f'+f.charAt(0).toUpperCase()+f.slice(1)).classList.add('active'); renderPlayers(); }
+const TABLES_DEF = [
+  { id:'leki',    name:'Leki',    icon:'🟢', mise:100,  trustMin:0  },
+  { id:'yaya',    name:'Yaya',    icon:'🔵', mise:500,  trustMin:30 },
+  { id:'mokolo',  name:'Mokolo',  icon:'🟡', mise:1000, trustMin:60 },
+  { id:'mokonzi', name:'Mokonzi', icon:'🔴', mise:2500, trustMin:85 },
+];
+function getMaxTable(u){
+  if(u.vip) return TABLES_DEF[TABLES_DEF.length-1]; // VIP = toutes les tables
+  const score = u.trustScore||0;
+  let max = TABLES_DEF[0];
+  TABLES_DEF.forEach(t=>{ if(score>=t.trustMin) max=t; });
+  return max;
+}
+function getRTPColor(rtp){
+  if(rtp>=65) return 'var(--green)';
+  if(rtp>=50) return 'var(--amber)';
+  if(rtp>=35) return 'var(--blue)';
+  return 'var(--red)';
+}
+
+async function renderPlayers(){
+  const q=(document.getElementById('playerSearch')?.value||'').toLowerCase();
+  let users=(await getUsersAsync()).filter(u=>u.username!=='admin');
+  if(q) users=users.filter(u=>u.username.toLowerCase().includes(q));
+  if(playerFilter==='active') users=users.filter(u=>!u.banned);
+  if(playerFilter==='banned') users=users.filter(u=>u.banned);
+  const rtpSettings = getRTPSettings();
+  const tbody=document.getElementById('playersTbody');
+  if(!tbody) return;
+  tbody.innerHTML=users.map(u=>{
+    const rtp = rtpSettings[u.username]!==undefined ? rtpSettings[u.username] : 50;
+    const maxTable = getMaxTable(u);
+    const rtpLabel = rtp===50 ? 'NEUTRE' : rtp>50 ? `+${rtp}%` : `${rtp}%`;
+    return `<tr>
+    <td style="font-size:20px;">${u.avatar||'🃏'}</td>
+    <td><strong style="color:var(--text)">${u.username}</strong><br><small style="color:var(--text-dim)">${u.email||'—'}</small></td>
+    <td style="color:var(--amber)">${(u.balance||0).toLocaleString('fr-FR')} FCFA</td>
+    <td>${u.totalGames||0}</td>
+    <td style="color:var(--green)">${u.totalWins||0}</td>
+    <td style="color:${getRTPColor(rtp)};font-family:'Orbitron',monospace;font-size:11px;">${rtpLabel}</td>
+    <td style="font-size:11px;">${maxTable.icon} ${maxTable.name}<br><small style="color:var(--text-dim)">${maxTable.mise.toLocaleString('fr-FR')} FCFA${u.vip?' · VIP':''}</small></td>
+    <td>${u.banned
+      ? '<span class="status-badge banned">BANNI</span>'
+      : u.vip ? '<span class="status-badge vip">VIP</span>' : '<span class="status-badge active">ACTIF</span>'}</td>
+    <td>
+      <button class="action-btn view" onclick="viewPlayer('${u.username}')">VOIR</button>
+      ${u.banned
+        ? `<button class="action-btn unban" onclick="toggleBan('${u.username}',false)">DÉBANNIR</button>`
+        : `<button class="action-btn ban" onclick="toggleBan('${u.username}',true)">BANNIR</button>`}
+      <button class="action-btn vip" onclick="toggleVIP('${u.username}')" style="${u.vip?'background:rgba(167,139,250,.2);border-color:rgba(167,139,250,.5);color:var(--purple)':''}">VIP</button>
+      <button class="action-btn" onclick="resetPin('${u.username}')" style="background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.4);color:#60a5fa">RESET PIN</button>
+    </td>
+  </tr>`;
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:30px;">Aucun joueur trouvé</td></tr>';
+}
+
+async function toggleBan(username,ban){
+  await SB.update('poko_users',{banned:ban},`username=eq.${encodeURIComponent(username)}`);
+  const users=JSON.parse(localStorage.getItem('poko_users')||'{}');
+  if(users[username]){ users[username].banned=ban; localStorage.setItem('poko_users',JSON.stringify(users)); }
+  addAdminLog('SYS',`${ban?'Bannissement':'Débannissement'} de ${username}`);
+  renderPlayers();
+}
+async function toggleVIP(username){
+  const users=JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const u=users[username]; if(!u) return;
+  const newVip=!(u.vip||false);
+  u.vip=newVip;
+  // VIP ON → trustScore 100 = toutes les tables débloquées
+  // VIP OFF → recalcul normal via POKO_DB
+  u.trustScore = newVip ? 100 : (typeof POKO_DB!=='undefined' ? POKO_DB.calculateTrustScore(u) : u.trustScore);
+  await SB.update('poko_users',{vip:newVip,trustScore:u.trustScore},`username=eq.${encodeURIComponent(username)}`);
+  localStorage.setItem('poko_users',JSON.stringify(users));
+  addAdminLog('SYS',`${newVip?'✨ VIP activé (toutes tables débloquées)':'VIP retiré'} pour ${username}`);
+  renderPlayers();
+}
+
+async function resetPin(username){
+  const newPin = prompt(`Nouveau mot de passe pour ${username} :`);
+  if(!newPin || newPin.length < 4){ alert('Mot de passe trop court (4 car. min).'); return; }
+  const hash = btoa(unescape(encodeURIComponent(newPin)));
+  // Mettre à jour le localStorage
+  const users = JSON.parse(localStorage.getItem('poko_users')||'{}');
+  if(users[username]){ users[username].password=hash; localStorage.setItem('poko_users',JSON.stringify(users)); }
+  SB.update('poko_users', {password_hash: hash}, `username=eq.${encodeURIComponent(username)}`).catch(()=>{});
+  alert(`Mot de passe de ${username} réinitialisé avec succès.`);
+  addAdminLog('SYS',`Reset PIN pour ${username}`);
+}
+function viewPlayer(username){
+  const users=JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const u=users[username]; if(!u) return;
+  document.getElementById('modalTitle').textContent=`${u.avatar||'🃏'} ${u.username.toUpperCase()}`;
+  const wr=u.totalGames>0?Math.round(u.totalWins/u.totalGames*100):0;
+  document.getElementById('modalContent').innerHTML=`
+    <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val">${u.email||'—'}</span></div>
+    <div class="detail-row"><span class="detail-key">Solde</span><span class="detail-val" style="color:var(--amber)">${(u.balance||0).toLocaleString('fr-FR')} FCFA</span></div>
+    <div class="detail-row"><span class="detail-key">Parties jouées</span><span class="detail-val">${u.totalGames||0}</span></div>
+    <div class="detail-row"><span class="detail-key">Victoires</span><span class="detail-val" style="color:var(--green)">${u.totalWins||0}</span></div>
+    <div class="detail-row"><span class="detail-key">Taux de victoire</span><span class="detail-val">${wr}%</span></div>
+    <div class="detail-row"><span class="detail-key">Total gagné</span><span class="detail-val" style="color:var(--green)">+${(u.totalEarned||0).toLocaleString('fr-FR')} FCFA</span></div>
+    <div class="detail-row"><span class="detail-key">Total perdu</span><span class="detail-val" style="color:var(--red)">-${(u.totalLost||0).toLocaleString('fr-FR')} FCFA</span></div>
+    <div class="detail-row"><span class="detail-key">Meilleure série</span><span class="detail-val">${u.longestWinStreak||0} victoires</span></div>
+    <div class="detail-row"><span class="detail-key">Inscription</span><span class="detail-val">${new Date(u.createdAt).toLocaleDateString('fr-FR')}</span></div>
+    <div class="detail-row"><span class="detail-key">Statut</span><span class="detail-val">${u.banned?'<span style="color:var(--red)">BANNI</span>':u.vip?'<span style="color:var(--purple)">VIP</span>':'<span style="color:var(--green)">ACTIF</span>'}</span></div>
+    <div style="margin-top:18px;display:flex;gap:10px;">
+      <button class="action-btn ${u.banned?'unban':'ban'}" onclick="toggleBan('${u.username}',${!u.banned});closeModal();">${u.banned?'DÉBANNIR':'BANNIR'}</button>
+      <button class="action-btn vip" onclick="toggleVIP('${u.username}');closeModal();">TOGGLE VIP</button>
+      <button class="action-btn" onclick="resetPin('${u.username}');closeModal();" style="background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.4);color:#60a5fa">RESET PIN</button>
+    </div>
+  `;
+  document.getElementById('playerModal').classList.add('open');
+}
+function closeModal(){ document.getElementById('playerModal').classList.remove('open'); }
+
+// ── RTP ──
+let rtpData={};
+let rtpOverrides={};
+function getRTPSettings(){ try{return JSON.parse(localStorage.getItem('poko_rtp')||'{}');}catch(e){return {};} }
+function saveRTPSettings(d){ localStorage.setItem('poko_rtp',JSON.stringify(d)); }
+function getRTPOverrides(){ try{return JSON.parse(localStorage.getItem('poko_rtp_override')||'{}');}catch(e){return {};} }
+function saveRTPOverrides(d){ localStorage.setItem('poko_rtp_override',JSON.stringify(d)); }
+
+async function renderRTP(){
+  const users=(await getUsersAsync()).filter(u=>!u.banned);
+  const saved=getRTPSettings();
+  rtpOverrides=getRTPOverrides();
+  const container=document.getElementById('rtpPlayers');
+  rtpData={};
+  users.forEach(u=>{ rtpData[u.username]=saved[u.username]||50; });
+
+  container.innerHTML=users.map(u=>{
+    const val=rtpData[u.username];
+    const cls=val>60?'rtp-val-good':val<35?'rtp-val-bad':'rtp-val-mid';
+    const modeLabel=val>65?'🍀 FAVORISÉ':val>50?'📈 AVANTAGE':val===50?'⚖️ NEUTRE':val>30?'📉 DÉSAVANTAGÉ':'💀 RUINÉ';
+    const isManual=!!rtpOverrides[u.username];
+    const autoRtp=POKO_DB.getRTP(u);
+    const badgeHtml=isManual
+      ?`<span id="rtp-badge-${u.username}" style="font-size:9px;background:rgba(255,179,0,.15);border:1px solid rgba(255,179,0,.4);color:var(--amber);padding:1px 6px;border-radius:2px;margin-left:6px;">✎ MANUEL</span>`
+      :`<span id="rtp-badge-${u.username}" style="font-size:9px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:var(--green);padding:1px 6px;border-radius:2px;margin-left:6px;">⚡ AUTO</span>`;
+    const resetBtnHtml=`<button id="rtp-autoreset-${u.username}" onclick="resetRTPToAuto('${u.username}')" style="display:${isManual?'inline':'none'};margin-left:6px;font-size:9px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);color:var(--green);padding:1px 8px;border-radius:2px;cursor:pointer;font-family:inherit;letter-spacing:1px;">↺ RESET AUTO</button>`;
+    const autoHintHtml=isManual?`<span style="font-size:9px;color:rgba(255,255,255,.3);margin-left:6px;">(auto: ${autoRtp}%)</span>`:'';
+    return `<div class="rtp-player-row" id="rtp-row-${u.username}">
+      <div class="rtp-player-name">${u.avatar||'🃏'} ${u.username}${badgeHtml}${resetBtnHtml}${autoHintHtml}</div>
+      <div class="rtp-slider-wrap">
+        <div class="rtp-label-row"><span>DÉFAVORISÉ</span><span>NEUTRE</span><span>FAVORISÉ</span></div>
+        <input class="rtp-slider" type="range" min="5" max="95" value="${val}"
+          style="--val:${val}%"
+          oninput="updateRTP('${u.username}',this)">
+      </div>
+      <div class="rtp-val-display ${cls}" id="rtp-val-${u.username}">${val}%</div>
+      <div class="rtp-mode-tag" id="rtp-mode-${u.username}" style="font-size:9px;color:var(--text-dim)">${modeLabel}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-dim);padding:20px;font-size:12px;">Aucun joueur enregistré.</div>';
+}
+
+function updateRTP(username, input){
+  const v=parseInt(input.value);
+  const wasAuto=!rtpOverrides[username];
+  rtpData[username]=v;
+  rtpOverrides[username]=true; // prise en main manuelle
+  input.style.setProperty('--val',v+'%');
+  const cls=v>60?'rtp-val-good':v<35?'rtp-val-bad':'rtp-val-mid';
+  const el=document.getElementById('rtp-val-'+username);
+  el.textContent=v+'%'; el.className='rtp-val-display '+cls;
+  const modeLabel=v>65?'🍀 FAVORISÉ':v>50?'📈 AVANTAGE':v===50?'⚖️ NEUTRE':v>30?'📉 DÉSAVANTAGÉ':'💀 RUINÉ';
+  document.getElementById('rtp-mode-'+username).textContent=modeLabel;
+  if(wasAuto){
+    const badgeEl=document.getElementById('rtp-badge-'+username);
+    const resetEl=document.getElementById('rtp-autoreset-'+username);
+    if(badgeEl){badgeEl.textContent='✎ MANUEL';badgeEl.style.cssText='font-size:9px;background:rgba(255,179,0,.15);border:1px solid rgba(255,179,0,.4);color:var(--amber);padding:1px 6px;border-radius:2px;margin-left:6px;';}
+    if(resetEl){resetEl.style.display='inline';}
+  }
+}
+
+function applyGlobalPreset(mode, val, el){
+  document.querySelectorAll('.rtp-preset').forEach(b=>b.classList.remove('on'));
+  if(el) el.classList.add('on');
+  Object.keys(rtpData).forEach(u=>{
+    rtpData[u]=val;
+    rtpOverrides[u]=true; // preset global = override manuel
+    const row=document.getElementById('rtp-row-'+u);
+    if(!row) return;
+    const slider=row.querySelector('.rtp-slider');
+    if(slider){ slider.value=val; slider.style.setProperty('--val',val+'%'); }
+    const valEl=document.getElementById('rtp-val-'+u);
+    if(valEl){ const cls=val>60?'rtp-val-good':val<35?'rtp-val-bad':'rtp-val-mid'; valEl.textContent=val+'%'; valEl.className='rtp-val-display '+cls; }
+    const modeEl=document.getElementById('rtp-mode-'+u);
+    if(modeEl){ const ml=val>65?'🍀 FAVORISÉ':val>50?'📈 AVANTAGE':val===50?'⚖️ NEUTRE':val>30?'📉 DÉSAVANTAGÉ':'💀 RUINÉ'; modeEl.textContent=ml; }
+    const badgeEl=document.getElementById('rtp-badge-'+u);
+    const resetEl=document.getElementById('rtp-autoreset-'+u);
+    if(badgeEl){badgeEl.textContent='✎ MANUEL';badgeEl.style.cssText='font-size:9px;background:rgba(255,179,0,.15);border:1px solid rgba(255,179,0,.4);color:var(--amber);padding:1px 6px;border-radius:2px;margin-left:6px;';}
+    if(resetEl){resetEl.style.display='inline';}
+  });
+}
+
+// ── ANALYSE CONFLIT RTP / DIFFICULTÉ ──
+function analyseConflict(){
+  const diff = JSON.parse(localStorage.getItem('poko_difficulty')||'null');
+  const rtp  = JSON.parse(localStorage.getItem('poko_rtp')||'{}');
+
+  const diffLevel = diff ? diff.level : 'easy';
+  const avgRtp = Object.values(rtp).length
+    ? Math.round(Object.values(rtp).reduce((a,v)=>a+v,0)/Object.values(rtp).length)
+    : 50;
+
+  // Niveaux de danger
+  const diffScore = {easy:1, mid:2, hard:3, god:4}[diffLevel] || 1;
+  const rtpScore  = avgRtp >= 65 ? 3 : avgRtp >= 55 ? 2 : avgRtp <= 30 ? 3 : avgRtp <= 40 ? 2 : 1;
+  const diffDir   = diffScore >= 3 ? 'hard' : diffScore <= 1 ? 'easy' : 'mid';
+  const rtpDir    = avgRtp >= 55 ? 'high' : avgRtp <= 45 ? 'low' : 'neutral';
+
+  let level = 'ok'; // ok | warn | danger
+  let msg   = '';
+  let icon  = '';
+
+  if(diffDir === 'hard' && rtpDir === 'high'){
+    level = 'danger';
+    icon  = '💸';
+    msg   = `IA ${diffLevel.toUpperCase()} + RTP moyen ${avgRtp}% — Le joueur a de bonnes cartes mais l'IA joue parfaitement contre. Tu paies le coût d'un RTP élevé sans garantir l'expérience joueur. Résultat imprévisible, rentabilité compromise.`;
+  } else if(diffDir === 'easy' && rtpDir === 'low'){
+    level = 'danger';
+    icon  = '😡';
+    msg   = `IA FACILE + RTP moyen ${avgRtp}% — Le joueur reçoit de mauvaises cartes ET face à une IA qui joue mal. Expérience très frustrante, aucun sentiment de progression. Risque élevé d'abandon.`;
+  } else if(diffDir === 'hard' && rtpDir === 'low'){
+    level = 'warn';
+    icon  = '⚠️';
+    msg   = `IA ${diffLevel.toUpperCase()} + RTP moyen ${avgRtp}% — Combinaison agressive : mauvaises cartes + stratégie IA optimale. Adapté à des joueurs expérimentés uniquement.`;
+  } else if(diffDir === 'easy' && rtpDir === 'high'){
+    level = 'warn';
+    icon  = '⚠️';
+    msg   = `IA FACILE + RTP moyen ${avgRtp}% — Le joueur gagne facilement. Résultat prévisible mais coûteux pour le casino. À réserver aux nouveaux joueurs ou promotions.`;
+  }
+
+  return { level, msg, icon, avgRtp, diffLevel };
+}
+
+function showConflictWarnings(){
+  const { level, msg, icon, avgRtp, diffLevel } = analyseConflict();
+  if(!msg){
+    ['rtpConflictWarn','diffConflictWarn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+    return;
+  }
+  const color   = level==='danger' ? 'var(--red)' : 'var(--amber)';
+  const bg      = level==='danger' ? 'rgba(239,68,68,.08)' : 'rgba(255,179,0,.08)';
+  const border  = level==='danger' ? 'rgba(239,68,68,.35)' : 'rgba(255,179,0,.35)';
+  const html = `
+    <div style="padding:14px 16px;background:${bg};border:1px solid ${border};border-left:3px solid ${color};">
+      <div style="font-size:10px;letter-spacing:3px;color:${color};text-transform:uppercase;margin-bottom:6px;">${icon} CONFLIT DÉTECTÉ — ${level==='danger'?'CRITIQUE':'ATTENTION'}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.75);line-height:1.7;letter-spacing:.5px;">${msg}</div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text-dim);">
+        Difficulté active : <span style="color:${color}">${diffLevel.toUpperCase()}</span> &nbsp;|&nbsp;
+        RTP moyen joueurs : <span style="color:${color}">${avgRtp}%</span> &nbsp;|&nbsp;
+        RTP optimal pour cette difficulté : <span style="color:var(--green)">${diffLevel==='god'||diffLevel==='hard'?'35–50%':diffLevel==='mid'?'45–60%':'55–70%'}</span>
+      </div>
+    </div>`;
+  ['rtpConflictWarn','diffConflictWarn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){ el.innerHTML=html; el.style.display='block'; }
+  });
+}
+
+// ── LOGS FINANCIERS ──────────────────────────────────────────────────────────
+
+let _finLogTimer = null;
+let _finLogCountdownSec = 600;
+
+function getFinLogs(){ try{return JSON.parse(localStorage.getItem('poko_fin_logs')||'[]');}catch(e){return [];} }
+function saveFinLogs(arr){ localStorage.setItem('poko_fin_logs', JSON.stringify(arr)); }
+
+function generateFinLog(){
+  const users = getUsers();
+  const now   = new Date();
+  const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+  const todayTs = todayStart.getTime();
+
+  // Agrégation toutes transactions tous joueurs
+  let allTx = [];
+  users.forEach(u => (u.transactions||[]).forEach(tx => allTx.push({...tx, username:u.username})));
+  allTx.sort((a,b) => b.date - a.date);
+
+  const todayTx = allTx.filter(tx => tx.date >= todayTs);
+
+  // Résumé journalier
+  const sum = (arr, type) => arr.filter(t=>t.type===type).reduce((s,t)=>s+Math.abs(t.amount),0);
+  const cnt = (arr, type) => arr.filter(t=>t.type===type).length;
+  const todayR = sum(todayTx,'recharge');
+  const todayW = sum(todayTx,'withdraw');
+  const todayG = sum(todayTx,'win');
+  const todayK = sum(todayTx,'koni_earn');
+  const todayM = todayR - todayW - todayG;
+  const margePct = todayR > 0 ? ((todayM/todayR)*100).toFixed(1)+'%' : 'N/A';
+
+  // Historique 7 jours
+  const days = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(now); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+    const dEnd = new Date(d); dEnd.setHours(23,59,59,999);
+    const dtx = allTx.filter(t => t.date >= d.getTime() && t.date <= dEnd.getTime());
+    const dr = sum(dtx,'recharge'), dw = sum(dtx,'withdraw'), dg = sum(dtx,'win');
+    days.push({ label: d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}), r:dr, w:dw, g:dg, m:dr-dw-dg });
+  }
+
+  // Koni global
+  const totalKoni = users.reduce((s,u)=>s+(u.koniBalance||0), 0);
+  const totalKoniVal = Math.floor(totalKoni / 5);
+
+  // Alertes
+  const alerts = [];
+  users.forEach(u => (u.transactions||[]).forEach(tx => {
+    if(tx.type==='withdraw' && tx.status==='pending'){
+      const hrs = ((now.getTime()-tx.date)/3600000).toFixed(1);
+      alerts.push(`⚠  Retrait en attente ${hrs}h : @${u.username} — ${Math.abs(tx.amount).toLocaleString('fr-FR')} FCFA`);
+    }
+  }));
+
+  // ── Construction texte ──
+  const L72 = '═'.repeat(72);
+  const L40 = '─'.repeat(72);
+  const ts    = now.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const next  = new Date(now.getTime()+600000).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+
+  const TYPES = {
+    recharge:     'RECHARGE    ',
+    withdraw:     'RETRAIT     ',
+    win:          'VICTOIRE    ',
+    loss:         'DÉFAITE     ',
+    koni_earn:    'KONI GAGNÉ  ',
+    koni_convert: 'KONI CONV.  ',
+  };
+
+  let t = '';
+  t += L72+'\n';
+  t += '   POKO — LOG FINANCIER DÉTAILLÉ\n';
+  t += `   Généré     : ${ts}\n`;
+  t += `   Prochain   : ${next}\n`;
+  t += `   Comptes    : ${users.length}  |  Transactions agrégées : ${allTx.length}\n`;
+  t += L72+'\n\n';
+
+  // --- Transactions du jour ---
+  t += `── TRANSACTIONS DU JOUR (${now.toLocaleDateString('fr-FR')}) ${'─'.repeat(18)}\n\n`;
+  if(todayTx.length === 0){
+    t += '  Aucune transaction enregistrée aujourd\'hui.\n';
+  } else {
+    t += `  ${'HEURE'.padEnd(10)} ${'TYPE'.padEnd(14)} ${'MONTANT'.padStart(18)}  ${'JOUEUR'.padEnd(18)} SOLDE APRÈS\n`;
+    t += `  ${'─'.repeat(70)}\n`;
+    todayTx.forEach(tx => {
+      const heure  = new Date(tx.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const type   = (TYPES[tx.type] || (tx.type||'').slice(0,12).toUpperCase().padEnd(12,' '));
+      const isKoni = tx.type==='koni_earn'||tx.type==='koni_convert';
+      const sign   = tx.amount >= 0 ? '+' : '';
+      const unit   = isKoni ? 'Koni' : 'FCFA';
+      const amt    = (sign+Math.abs(tx.amount).toLocaleString('fr-FR')+' '+unit).padStart(18,' ');
+      const user   = ('@'+tx.username).padEnd(18,' ');
+      const bal    = tx.balance !== undefined ? tx.balance.toLocaleString('fr-FR')+' FCFA' : '—';
+      t += `  ${heure.padEnd(10)} ${type} ${amt}  ${user} ${bal}\n`;
+    });
+  }
+  t += `\n  Total : ${todayTx.length} transaction(s)\n\n`;
+  t += L40+'\n\n';
+
+  // --- Résumé journalier ---
+  t += `── RÉSUMÉ JOURNALIER ${'─'.repeat(52)}\n\n`;
+  t += `  Recharges            : ${('+'+todayR.toLocaleString('fr-FR')+' FCFA').padStart(20)}  (${cnt(todayTx,'recharge')} ops)\n`;
+  t += `  Retraits             : ${('-'+todayW.toLocaleString('fr-FR')+' FCFA').padStart(20)}  (${cnt(todayTx,'withdraw')} ops)\n`;
+  t += `  Gains payés          : ${('-'+todayG.toLocaleString('fr-FR')+' FCFA').padStart(20)}\n`;
+  t += `  Koni générés         : ${(todayK.toLocaleString('fr-FR')+' Koni').padStart(20)}\n`;
+  t += `  Parties (win+loss)   : ${String(cnt(todayTx,'win')+cnt(todayTx,'loss')).padStart(20)}\n`;
+  t += `  ${'─'.repeat(52)}\n`;
+  const ms = todayM>=0?'+':'';
+  t += `  Marge brute          : ${(ms+todayM.toLocaleString('fr-FR')+' FCFA').padStart(20)}  (${margePct})\n`;
+  t += '\n'+L40+'\n\n';
+
+  // --- Historique 7 jours ---
+  t += `── HISTORIQUE 7 DERNIERS JOURS ${'─'.repeat(42)}\n\n`;
+  t += `  ${'DATE'.padEnd(14)} ${'RECHARGES'.padStart(16)} ${'RETRAITS'.padStart(14)} ${'GAINS PAYÉS'.padStart(14)} ${'MARGE'.padStart(14)}\n`;
+  t += `  ${'─'.repeat(74)}\n`;
+  days.forEach(d => {
+    const ms2 = d.m>=0?'+':'';
+    t += `  ${d.label.padEnd(14)} ${(d.r.toLocaleString('fr-FR')+' FCFA').padStart(16)} ${(d.w.toLocaleString('fr-FR')+' FCFA').padStart(14)} ${(d.g.toLocaleString('fr-FR')+' FCFA').padStart(14)} ${(ms2+d.m.toLocaleString('fr-FR')+' FCFA').padStart(14)}\n`;
+  });
+  t += '\n'+L40+'\n\n';
+
+  // --- Koni ---
+  t += `── KONI ${'─'.repeat(65)}\n\n`;
+  t += `  En circulation       : ${totalKoni.toLocaleString('fr-FR')} Koni\n`;
+  t += `  Générés aujourd'hui  : ${todayK.toLocaleString('fr-FR')} Koni\n`;
+  t += `  Valeur convertible   : ~${totalKoniVal.toLocaleString('fr-FR')} FCFA\n`;
+  t += '\n'+L40+'\n\n';
+
+  // --- Alertes ---
+  if(alerts.length > 0){
+    t += `── ALERTES ${'─'.repeat(62)}\n\n`;
+    alerts.forEach(a => t += `  ${a}\n`);
+    t += '\n'+L40+'\n\n';
+  }
+
+  t += L72+'\n';
+  t += '   FIN DU RAPPORT — POKO FINANCIAL LOG v1.0\n';
+  t += L72+'\n';
+
+  return { content: t, ts: now.getTime(), label: ts };
+}
+
+function generateAndSaveFinLog(){
+  const log  = generateFinLog();
+  const logs = getFinLogs();
+  logs.unshift(log);
+  if(logs.length > 48) logs.length = 48;
+  saveFinLogs(logs);
+  renderFinLog();
+}
+
+function renderFinLog(){
+  const logs = getFinLogs();
+
+  // Terminal
+  const terminal = document.getElementById('finlog-terminal');
+  if(terminal) terminal.textContent = logs[0] ? logs[0].content : 'Aucun log généré. Cliquez sur "↺ GÉNÉRER MAINTENANT".';
+
+  // Stats rapides
+  const statsEl = document.getElementById('finlog-stats');
+  if(statsEl){
+    const users = getUsers();
+    const now = Date.now();
+    const todayStart = new Date(); new Date().setHours(0,0,0,0);
+    const ts = new Date(); ts.setHours(0,0,0,0);
+    let allTx = [];
+    users.forEach(u => (u.transactions||[]).forEach(tx => allTx.push({...tx})));
+    const today = allTx.filter(tx => tx.date >= ts.getTime());
+    const r = today.filter(t=>t.type==='recharge').reduce((s,t)=>s+Math.abs(t.amount),0);
+    const w = today.filter(t=>t.type==='withdraw').reduce((s,t)=>s+Math.abs(t.amount),0);
+    const g = today.filter(t=>t.type==='win').reduce((s,t)=>s+Math.abs(t.amount),0);
+    const m = r - w - g;
+    statsEl.innerHTML = [
+      {label:'RECHARGES DU JOUR',  val:r.toLocaleString('fr-FR')+' FCFA', color:'var(--green)'},
+      {label:'RETRAITS DU JOUR',   val:w.toLocaleString('fr-FR')+' FCFA', color:'var(--amber)'},
+      {label:'GAINS PAYÉS',        val:g.toLocaleString('fr-FR')+' FCFA', color:'var(--red)'},
+      {label:'MARGE BRUTE',        val:(m>=0?'+':'')+m.toLocaleString('fr-FR')+' FCFA', color:m>=0?'var(--green)':'var(--red)'},
+    ].map(s=>`
+      <div style="background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:12px 16px;">
+        <div style="font-size:8px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;">${s.label}</div>
+        <div style="font-size:13px;font-family:'Orbitron',monospace;font-weight:600;color:${s.color};">${s.val}</div>
+      </div>`).join('');
+  }
+
+  // Historique pills
+  const histEl = document.getElementById('finlog-history');
+  if(histEl){
+    if(logs.length === 0){
+      histEl.innerHTML = '<div style="font-size:10px;color:var(--text-dim);">Aucun snapshot. Cliquez sur GÉNÉRER MAINTENANT.</div>';
+    } else {
+      histEl.innerHTML = logs.map((log,i) => `
+        <button onclick="loadFinLogSnapshot(${i})" style="font-size:9px;letter-spacing:1px;background:${i===0?'rgba(255,179,0,.15)':'rgba(255,255,255,.04)'};border:1px solid ${i===0?'var(--amber)':'rgba(255,255,255,.1)'};color:${i===0?'var(--amber)':'var(--text-dim)'};padding:4px 10px;border-radius:2px;cursor:pointer;font-family:inherit;">
+          ${i===0?'● ':''} ${log.label}
+        </button>`).join('');
+    }
+  }
+}
+
+function loadFinLogSnapshot(idx){
+  const logs = getFinLogs();
+  if(!logs[idx]) return;
+  document.getElementById('finlog-terminal').textContent = logs[idx].content;
+}
+
+function downloadFinLog(mode){
+  const logs = getFinLogs();
+  if(logs.length === 0){ alert('Aucun log disponible. Cliquez sur ↺ GÉNÉRER MAINTENANT.'); return; }
+  let content, filename;
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if(mode === 'today'){
+    content  = logs[0].content;
+    filename = `poko_log_${dateStr}.txt`;
+  } else {
+    content  = logs.map((l,i) => `${'═'.repeat(72)}\nSNAPSHOT #${String(i+1).padStart(2,'0')} — ${l.label}\n${'═'.repeat(72)}\n\n${l.content}`).join('\n\n');
+    filename = `poko_logs_complet_${dateStr}_${Date.now()}.txt`;
+  }
+  const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  addAdminLog('SYS', `Export log financier — ${filename}`);
+}
+
+function startFinLogTimer(){
+  if(_finLogTimer) clearInterval(_finLogTimer);
+  _finLogCountdownSec = 600;
+  _finLogTimer = setInterval(() => {
+    _finLogCountdownSec--;
+    const el = document.getElementById('finlog-countdown');
+    if(el){
+      const m = Math.floor(_finLogCountdownSec / 60);
+      const s = String(_finLogCountdownSec % 60).padStart(2,'0');
+      el.textContent = `Prochain snapshot dans ${m}:${s}`;
+    }
+    if(_finLogCountdownSec <= 0){
+      generateAndSaveFinLog();
+      _finLogCountdownSec = 600;
+    }
+  }, 1000);
+}
+
+// ── FIN LOGS FINANCIERS ───────────────────────────────────────────────────────
+
+function saveRTP(){
+  saveRTPSettings(rtpData);
+  saveRTPOverrides(rtpOverrides);
+  addAdminLog('SYS','Paramètres RTP mis à jour');
+  const msg=document.getElementById('rtpSaveMsg');
+  msg.style.display='inline'; setTimeout(()=>msg.style.display='none',2500);
+  showConflictWarnings();
+}
+
+async function resetRTPToAuto(username){
+  delete rtpOverrides[username];
+  const users=await getUsersAsync();
+  const u=users.find(x=>x.username===username);
+  const autoRtp=u?POKO_DB.getRTP(u):50;
+  rtpData[username]=autoRtp;
+  saveRTPSettings(rtpData);
+  saveRTPOverrides(rtpOverrides);
+  addAdminLog('SYS','RTP auto réactivé pour '+username+' → '+autoRtp+'%');
+  renderRTP();
+}
+
+// ── DIFFICULTY ──
+let currentDiff='easy';
+const diffConfigs={
+  easy:{casse:30,memory:20,aggro:20,delay:1200,label:'DÉBUTANT'},
+  mid:{casse:60,memory:50,aggro:40,delay:900,label:'NORMAL'},
+  hard:{casse:85,memory:85,aggro:70,delay:600,label:'EXPERT'},
+  god:{casse:100,memory:100,aggro:90,delay:400,label:'DIVIN'}
+};
+function selectDiff(d, el){
+  currentDiff=d;
+  document.querySelectorAll('.diff-card').forEach(c=>c.classList.remove('selected'));
+  if(el) el.classList.add('selected');
+  const cfg=diffConfigs[d];
+  document.getElementById('pCasse').value=cfg.casse; document.getElementById('pCasseVal').textContent=cfg.casse+'%';
+  document.getElementById('pMemory').value=cfg.memory; document.getElementById('pMemoryVal').textContent=cfg.memory+'%';
+  document.getElementById('pAggro').value=cfg.aggro; document.getElementById('pAggroVal').textContent=cfg.aggro+'%';
+  document.getElementById('pDelay').value=cfg.delay; document.getElementById('pDelayVal').textContent=cfg.delay+'ms';
+  document.getElementById('diffParamsLabel').textContent=cfg.label;
+}
+function updateParam(el,valId,suffix='%'){ document.getElementById(valId).textContent=el.value+suffix; }
+function saveDifficulty(){
+  const cfg={
+    level:currentDiff,
+    casse:parseInt(document.getElementById('pCasse').value),
+    memory:parseInt(document.getElementById('pMemory').value),
+    aggro:parseInt(document.getElementById('pAggro').value),
+    delay:parseInt(document.getElementById('pDelay').value)
+  };
+  localStorage.setItem('poko_difficulty',JSON.stringify(cfg));
+  addAdminLog('SYS',`Difficulté IA : ${diffConfigs[currentDiff].label} sauvegardée`);
+  const msg=document.getElementById('diffSaveMsg');
+  msg.style.display='inline'; setTimeout(()=>msg.style.display='none',2500);
+  showConflictWarnings();
+}
+// Load saved difficulty
+(()=>{ try{ const s=JSON.parse(localStorage.getItem('poko_difficulty')||'null'); if(s&&s.level){ currentDiff=s.level; document.querySelectorAll('.diff-card').forEach(c=>c.classList.remove('selected')); document.querySelector('.diff-card.d-'+({'easy':'easy','mid':'mid','hard':'hard','god':'god'}[s.level]||'easy')).classList.add('selected'); const cfg=diffConfigs[s.level]; document.getElementById('pCasse').value=s.casse||cfg.casse; document.getElementById('pCasseVal').textContent=(s.casse||cfg.casse)+'%'; document.getElementById('pMemory').value=s.memory||cfg.memory; document.getElementById('pMemoryVal').textContent=(s.memory||cfg.memory)+'%'; document.getElementById('pAggro').value=s.aggro||cfg.aggro; document.getElementById('pAggroVal').textContent=(s.aggro||cfg.aggro)+'%'; document.getElementById('pDelay').value=s.delay||cfg.delay; document.getElementById('pDelayVal').textContent=(s.delay||cfg.delay)+'ms'; document.getElementById('diffParamsLabel').textContent=diffConfigs[s.level].label; } }catch(e){} })();
+
+// ── LOGS ──
+let logFilter='all';
+async function renderLogs(){
+  const logs=getAdminLogs();
+  const users=await getUsersAsync();
+  users.forEach(u=>(u.transactions||[]).slice(0,10).forEach(tx=>{
+    const type=tx.type==='win'?'WIN':tx.type==='loss'?'LOSE':tx.type==='deposit'?'JOIN':'SYS';
+    logs.push({ts:tx.date,type,msg:`${u.username} — ${tx.label}`});
+  }));
+  logs.sort((a,b)=>b.ts-a.ts);
+  const filtered=logFilter==='all'?logs:logs.filter(l=>l.type===logFilter);
+  const term=document.getElementById('logTerminal');
+  term.innerHTML=filtered.slice(0,150).map(l=>`
+    <div class="log-line">
+      <span class="log-ts">${new Date(l.ts).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
+      <span class="log-type ${l.type}">${l.type}</span>
+      <span class="log-msg">${l.msg}</span>
+    </div>
+  `).join('') || '<div style="color:var(--text-dim);padding:10px;">Aucun log disponible</div>';
+  term.scrollTop=0;
+}
+function filterLog(f,btn){
+  logFilter=f;
+  document.querySelectorAll('.log-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLogs();
+}
+function clearLogs(){ localStorage.removeItem('poko_admin_logs'); renderLogs(); }
+
+// ── SETTINGS ──
+const SETTINGS_DEFAULTS = {
+  minBet:50, maxBet:10000, welcomeBonus:5000, dailyBonus:500,
+  register:true, kin:true, showLog:true, anims:true,
+  rtpMoke:65, rtpMakala:18, rtpAuto:true,
+  mokeJours:15, seuilMonene:5000, seuilKoni:15000, seuilMakala:30000,
+  rechargeMin:500, rechargeMax:500000, retraitMin:1000, retraitMax:200000,
+  finlogInterval:10, finlogMax:48, finlogAuto:true,
+  maintenance:false, maintenanceMsg:'POKO est en maintenance. Retour très prochainement.',
+  sessionTimeout:5,
+};
+
+function loadSettings(){
+  const s = {...SETTINGS_DEFAULTS, ...getAdminSettings()};
+
+  // Jeu
+  document.getElementById('cfg-minBet').value        = s.minBet;
+  document.getElementById('cfg-maxBet').value        = s.maxBet;
+  document.getElementById('cfg-welcomeBonus').value  = s.welcomeBonus;
+  document.getElementById('cfg-dailyBonus').value    = s.dailyBonus;
+  document.getElementById('cfg-register').checked    = s.register;
+  document.getElementById('cfg-kin').checked         = s.kin;
+  document.getElementById('cfg-showLog').checked     = s.showLog;
+  document.getElementById('cfg-anims').checked       = s.anims;
+
+  // RTP
+  document.getElementById('cfg-rtpMoke').value       = s.rtpMoke;
+  document.getElementById('cfg-rtpMakala').value     = s.rtpMakala;
+  document.getElementById('cfg-rtpAuto').checked     = s.rtpAuto;
+
+  // Niveaux
+  document.getElementById('cfg-mokeJours').value     = s.mokeJours;
+  document.getElementById('cfg-seuilMonene').value   = s.seuilMonene;
+  document.getElementById('cfg-seuilKoni').value     = s.seuilKoni;
+  document.getElementById('cfg-seuilMakala').value   = s.seuilMakala;
+
+  // Finances
+  document.getElementById('cfg-rechargeMin').value   = s.rechargeMin;
+  document.getElementById('cfg-rechargeMax').value   = s.rechargeMax;
+  document.getElementById('cfg-retraitMin').value    = s.retraitMin;
+  document.getElementById('cfg-retraitMax').value    = s.retraitMax;
+
+  // Logs financiers
+  document.getElementById('cfg-finlogInterval').value = s.finlogInterval;
+  document.getElementById('cfg-finlogMax').value      = s.finlogMax;
+  document.getElementById('cfg-finlogAuto').checked   = s.finlogAuto;
+
+  // Maintenance
+  document.getElementById('cfg-maintenance').checked  = s.maintenance;
+  document.getElementById('cfg-maintenanceMsg').value = s.maintenanceMsg;
+  _updateMaintenanceStatus(s.maintenance);
+
+  // Sécurité
+  document.getElementById('cfg-sessionTimeout').value = s.sessionTimeout;
+}
+
+function _updateMaintenanceStatus(active){
+  const el = document.getElementById('cfg-maintenance-status');
+  if(!el) return;
+  if(active){
+    el.style.color='var(--red)';
+    el.textContent='⚠ MAINTENANCE ACTIVE — Les joueurs ne peuvent pas accéder au jeu';
+  } else {
+    el.style.color='var(--green)';
+    el.textContent='✓ Jeu en ligne — Accès joueurs normal';
+  }
+}
+
+function saveSettings(){
+  const s = {
+    // Jeu
+    minBet:        parseInt(document.getElementById('cfg-minBet').value)        || SETTINGS_DEFAULTS.minBet,
+    maxBet:        parseInt(document.getElementById('cfg-maxBet').value)        || SETTINGS_DEFAULTS.maxBet,
+    welcomeBonus:  parseInt(document.getElementById('cfg-welcomeBonus').value)  || SETTINGS_DEFAULTS.welcomeBonus,
+    dailyBonus:    parseInt(document.getElementById('cfg-dailyBonus').value)    || SETTINGS_DEFAULTS.dailyBonus,
+    register:      document.getElementById('cfg-register').checked,
+    kin:           document.getElementById('cfg-kin').checked,
+    showLog:       document.getElementById('cfg-showLog').checked,
+    anims:         document.getElementById('cfg-anims').checked,
+    // RTP
+    rtpMoke:       parseInt(document.getElementById('cfg-rtpMoke').value)       || SETTINGS_DEFAULTS.rtpMoke,
+    rtpMakala:     parseInt(document.getElementById('cfg-rtpMakala').value)     || SETTINGS_DEFAULTS.rtpMakala,
+    rtpAuto:       document.getElementById('cfg-rtpAuto').checked,
+    // Niveaux
+    mokeJours:     parseInt(document.getElementById('cfg-mokeJours').value)     || SETTINGS_DEFAULTS.mokeJours,
+    seuilMonene:   parseInt(document.getElementById('cfg-seuilMonene').value)   || SETTINGS_DEFAULTS.seuilMonene,
+    seuilKoni:     parseInt(document.getElementById('cfg-seuilKoni').value)     || SETTINGS_DEFAULTS.seuilKoni,
+    seuilMakala:   parseInt(document.getElementById('cfg-seuilMakala').value)   || SETTINGS_DEFAULTS.seuilMakala,
+    // Finances
+    rechargeMin:   parseInt(document.getElementById('cfg-rechargeMin').value)   || SETTINGS_DEFAULTS.rechargeMin,
+    rechargeMax:   parseInt(document.getElementById('cfg-rechargeMax').value)   || SETTINGS_DEFAULTS.rechargeMax,
+    retraitMin:    parseInt(document.getElementById('cfg-retraitMin').value)    || SETTINGS_DEFAULTS.retraitMin,
+    retraitMax:    parseInt(document.getElementById('cfg-retraitMax').value)    || SETTINGS_DEFAULTS.retraitMax,
+    // Logs financiers
+    finlogInterval:parseInt(document.getElementById('cfg-finlogInterval').value)||SETTINGS_DEFAULTS.finlogInterval,
+    finlogMax:     parseInt(document.getElementById('cfg-finlogMax').value)     || SETTINGS_DEFAULTS.finlogMax,
+    finlogAuto:    document.getElementById('cfg-finlogAuto').checked,
+    // Maintenance
+    maintenance:   document.getElementById('cfg-maintenance').checked,
+    maintenanceMsg:document.getElementById('cfg-maintenanceMsg').value.trim() || SETTINGS_DEFAULTS.maintenanceMsg,
+    // Sécurité
+    sessionTimeout:parseInt(document.getElementById('cfg-sessionTimeout').value)||SETTINGS_DEFAULTS.sessionTimeout,
+  };
+
+  // Appliquer immédiatement les changements POKO_CONFIG
+  POKO_CONFIG.levels.moke.rtp         = s.rtpMoke;
+  POKO_CONFIG.levels.makala.rtp       = s.rtpMakala;
+  POKO_CONFIG.levelThresholds.moke_days = s.mokeJours;
+  POKO_CONFIG.levelThresholds.monene  = s.seuilMonene;
+  POKO_CONFIG.levelThresholds.koni    = s.seuilKoni;
+  POKO_CONFIG.levelThresholds.makala  = s.seuilMakala;
+
+  // Appliquer intervalle finlog si timer actif
+  _finLogCountdownSec = s.finlogInterval * 60;
+  if(!s.finlogAuto && _finLogTimer){ clearInterval(_finLogTimer); _finLogTimer=null; }
+
+  // Appliquer maintenance
+  localStorage.setItem('poko_maintenance', JSON.stringify({ active:s.maintenance, msg:s.maintenanceMsg }));
+  _updateMaintenanceStatus(s.maintenance);
+
+  saveAdminSettings(s);
+  addAdminLog('SYS','Paramètres globaux mis à jour');
+  const msg = document.getElementById('settingsSaveMsg');
+  msg.style.display='inline'; setTimeout(()=>msg.style.display='none',2500);
+}
+
+function resetSettings(){
+  if(!confirm('Remettre tous les paramètres aux valeurs par défaut ?')) return;
+  saveAdminSettings(SETTINGS_DEFAULTS);
+  loadSettings();
+  addAdminLog('SYS','Paramètres réinitialisés aux valeurs par défaut');
+  const msg = document.getElementById('settingsSaveMsg');
+  msg.style.color='var(--amber)'; msg.textContent='↺ Valeurs par défaut restaurées';
+  msg.style.display='inline'; setTimeout(()=>{ msg.style.display='none'; msg.style.color='var(--green)'; msg.textContent='✓ PARAMÈTRES SAUVEGARDÉS'; },3000);
+}
+
+
+// ── CAISSE CASINO ──────────────────────────────────────────
+
+function getCaisseState(){
+  try{ return JSON.parse(localStorage.getItem('poko_caisse')||'null') || {solde:0,totalEncaisse:0,totalDecaisse:0,totalEmis:0,ledger:[]}; }
+  catch(e){ return {solde:0,totalEncaisse:0,totalDecaisse:0,totalEmis:0,ledger:[]}; }
+}
+function saveCaisseState(c){ localStorage.setItem('poko_caisse',JSON.stringify(c)); }
+
+// Reconstruct caisse from all financial sources (source of truth)
+function computeCaisse(){
+  const users = getUsers();
+  let totalEncaisse=0, totalDecaisse=0, totalEmis=0, totalKoniPaid=0;
+  const ledger=[];
+
+  // ── Transactions joueurs ──
+  users.forEach(u=>{
+    (u.transactions||[]).forEach(tx=>{
+      if(tx.type==='loss'){
+        totalEncaisse += Math.abs(tx.amount);
+        ledger.push({ts:tx.date, user:u.username, label:tx.label, amount:Math.abs(tx.amount), dir:'in', balance:tx.balance||0, cat:'jeu'});
+      } else if(tx.type==='win'){
+        totalDecaisse += Math.abs(tx.amount);
+        ledger.push({ts:tx.date, user:u.username, label:tx.label, amount:-Math.abs(tx.amount), dir:'out', balance:tx.balance||0, cat:'jeu'});
+      } else if(tx.type==='bonus'){
+        totalEmis += Math.abs(tx.amount);
+        ledger.push({ts:tx.date, user:u.username, label:tx.label, amount:tx.amount, dir:'emit', balance:tx.balance||0, cat:'bonus'});
+      } else if(tx.type==='koni_convert'){
+        totalKoniPaid += Math.abs(tx.amount);
+        ledger.push({ts:tx.date, user:u.username, label:tx.label||'⭐ Conversion Koni', amount:-Math.abs(tx.amount), dir:'koni', balance:tx.balance||0, cat:'koni'});
+      }
+      // deposit : géré via poko_recharges (source officielle)
+    });
+  });
+
+  // ── Recharges approuvées (argent réel entré) ──
+  let totalRecharges=0;
+  getRecharges().filter(r=>r.status==='approved').forEach(r=>{
+    totalRecharges += r.amount;
+    const METHOD={orange:'🟠 Orange Money',airtel:'🔴 Airtel Money',especes:'💵 Espèces'};
+    ledger.push({ts:r.processedAt||r.requestedAt, user:r.username, label:`💳 Recharge ${METHOD[r.methode]||r.methode} validée`, amount:r.amount, dir:'recharge', balance:0, cat:'recharge'});
+  });
+
+  // ── Retraits approuvés (argent réel sorti) ──
+  let totalRetraits=0;
+  getRetraits().filter(r=>r.status==='approved').forEach(r=>{
+    totalRetraits += r.amount;
+    const METHOD={orange:'🟠 Orange Money',airtel:'🔴 Airtel Money',especes:'💵 Espèces'};
+    ledger.push({ts:r.processedAt||r.requestedAt, user:r.username, label:`🏦 Retrait ${METHOD[r.methode]||r.methode} validé`, amount:-r.amount, dir:'retrait', balance:0, cat:'retrait'});
+  });
+
+  ledger.sort((a,b)=>b.ts-a.ts);
+  const margeJeu = totalEncaisse - totalDecaisse;
+  const solde    = margeJeu - totalKoniPaid + totalRecharges - totalRetraits;
+  return {solde, totalEncaisse, totalDecaisse, totalEmis, totalKoniPaid, totalRecharges, totalRetraits, margeJeu, ledger};
+}
+
+function fmt(n){ return Math.abs(n).toLocaleString('fr-FR'); }
+function fmtSigned(n){ return (n>=0?'+':'-')+fmt(n)+' FCFA'; }
+
+let cfDays = 0; // 0 = all
+
+async function renderCaisse(){
+  await getUsersAsync();
+  const c = computeCaisse();
+  const users = getUsers();
+
+  // Hero
+  document.getElementById('caisseSoldeVal').textContent = (c.solde>=0?'+':'')+c.solde.toLocaleString('fr-FR')+' FCFA';
+  document.getElementById('caisseSoldeVal').style.color = c.solde >= 0 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('caisseEncaisse').textContent  = '+'+fmt(c.totalEncaisse)+' FCFA';
+  document.getElementById('caisseDecaisse').textContent  = '-'+fmt(c.totalDecaisse)+' FCFA';
+  document.getElementById('caisseEmise').textContent     = '+'+fmt(c.totalRecharges)+' FCFA';
+  document.getElementById('caisseRetraits').textContent  = '-'+fmt(c.totalRetraits)+' FCFA';
+  document.getElementById('caisseKoniCost').textContent  = '-'+fmt(c.totalKoniPaid)+' FCFA';
+  const marge = c.totalEncaisse > 0 ? Math.round(c.margeJeu/c.totalEncaisse*100) : 0;
+  document.getElementById('caisseMarge').textContent = marge+'%';
+  document.getElementById('caisseMarge').style.color = marge>=0?'var(--green)':'var(--red)';
+
+  // KPIs
+  const nbGames   = users.reduce((a,u)=>a+(u.totalGames||0),0);
+  const nbWins    = users.reduce((a,u)=>a+(u.totalWins||0),0);
+  const houseEdge = nbGames>0 ? Math.round((1-(nbWins/nbGames))*100) : 0;
+  const avgBet    = nbGames>0 ? Math.round(c.totalEncaisse/nbGames) : 0;
+  const tresoCash = c.totalRecharges - c.totalRetraits;
+  document.getElementById('caisseKpi').innerHTML=`
+    <div class="kpi green"><div class="kpi-label">Revenus jeu</div><div class="kpi-val">+${fmt(c.totalEncaisse)}</div><div class="kpi-sub">Pertes joueurs en parties</div></div>
+    <div class="kpi red"><div class="kpi-label">Gains versés</div><div class="kpi-val">-${fmt(c.totalDecaisse)}</div><div class="kpi-sub">Victoires joueurs</div></div>
+    <div class="kpi green"><div class="kpi-label">Recharges réelles</div><div class="kpi-val">+${fmt(c.totalRecharges)}</div><div class="kpi-sub">Argent réel entré</div></div>
+    <div class="kpi red"><div class="kpi-label">Retraits réels</div><div class="kpi-val">-${fmt(c.totalRetraits)}</div><div class="kpi-sub">Argent réel sorti</div></div>
+    <div class="kpi" style=""><div class="kpi-label">Trésorerie cash</div><div class="kpi-val" style="color:${tresoCash>=0?'var(--amber)':'var(--red)'}">${tresoCash>=0?'+':''}${fmt(tresoCash)}</div><div class="kpi-sub">Recharges − Retraits</div></div>
+    <div class="kpi"><div class="kpi-label">Marge jeu nette</div><div class="kpi-val" style="color:${c.margeJeu>=0?'var(--amber)':'var(--red)'}">${c.margeJeu>=0?'+':''}${fmt(c.margeJeu)}</div><div class="kpi-sub">Revenus − Gains</div></div>
+    <div class="kpi" style=""><div class="kpi-label">Coût Koni</div><div class="kpi-val" style="color:var(--purple)">-${fmt(c.totalKoniPaid)}</div><div class="kpi-sub">Conversions versées</div></div>
+    <div class="kpi blue"><div class="kpi-label">House Edge</div><div class="kpi-val">${houseEdge}%</div><div class="kpi-sub">Avantage casino / partie</div></div>
+    <div class="kpi blue"><div class="kpi-label">Mise moyenne</div><div class="kpi-val">${avgBet.toLocaleString('fr-FR')}</div><div class="kpi-sub">FCFA / partie</div></div>
+    <div class="kpi" style=""><div class="kpi-label">Emissions virtuelles</div><div class="kpi-val" style="color:var(--text-dim)">${fmt(c.totalEmis)}</div><div class="kpi-sub">Bonus + injections admin</div></div>
+  `;
+
+  // ── 3 Compartiments (getCaisses) ──
+  const ck = POKO_DB.getCaisses();
+  const caissesDef = [
+    { key:'acquisition', cls:'acq', icon:'🎯', label:'Acquisition',  pct:'30%', desc:'Marketing, bonus de bienvenue, acquisition nouveaux joueurs.' },
+    { key:'retention',   cls:'ret', icon:'🔁', label:'Rétention',    pct:'40%', desc:'Bonus quotidiens, tournois, fidélisation joueurs existants.' },
+    { key:'operations',  cls:'ops', icon:'⚙️', label:'Opérations',   pct:'30%', desc:'Technique, hébergement, support, frais de fonctionnement.' },
+  ];
+  document.getElementById('troiscaisses').innerHTML = caissesDef.map(d=>{
+    const box = ck[d.key] || {balance:0, pct:0};
+    const barW = Math.min(100, box.pct || 0);
+    return `<div class="caisse-box ${d.cls}">
+      <div class="caisse-name">${d.icon} ${d.label}</div>
+      <div class="caisse-pct">${d.pct} de la marge</div>
+      <div class="caisse-amount">${box.balance.toLocaleString('fr-FR')} FCFA</div>
+      <div class="caisse-bar-bg"><div class="caisse-bar-fill" style="width:${barW}%"></div></div>
+      <div class="caisse-desc">${d.desc}</div>
+    </div>`;
+  }).join('');
+
+  // Populate emit target select
+  const sel = document.getElementById('emitTarget');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">Tous les joueurs actifs</option>' +
+    users.filter(u=>!u.banned).map(u=>`<option value="${u.username}">${u.avatar||'🃏'} ${u.username} — ${(u.balance||0).toLocaleString('fr-FR')} FCFA</option>`).join('');
+  if(cur) sel.value=cur;
+
+  // Cash flow list
+  renderCashFlow(c.ledger);
+
+  // P&L table
+  const tbody = document.getElementById('pnlTbody');
+  const rechApprouv = getRecharges().filter(r=>r.status==='approved');
+  const retApprouv  = getRetraits().filter(r=>r.status==='approved');
+  const pnlData = users.map(u=>{
+    let enc=0, dec=0, bonus=0, koniCost=0;
+    (u.transactions||[]).forEach(tx=>{
+      if(tx.type==='loss')        enc      += Math.abs(tx.amount);
+      else if(tx.type==='win')    dec      += Math.abs(tx.amount);
+      else if(tx.type==='bonus')  bonus    += Math.abs(tx.amount);
+      else if(tx.type==='koni_convert') koniCost += Math.abs(tx.amount);
+    });
+    const rechargeU = rechApprouv.filter(r=>r.username===u.username).reduce((a,r)=>a+r.amount,0);
+    const retraitU  = retApprouv.filter(r=>r.username===u.username).reduce((a,r)=>a+r.amount,0);
+    const pnl = enc - dec - koniCost;
+    return {u, enc, dec, bonus, koniCost, rechargeU, retraitU, pnl};
+  }).sort((a,b)=>b.pnl-a.pnl);
+
+  tbody.innerHTML = pnlData.map(({u,enc,dec,bonus,koniCost,rechargeU,retraitU,pnl})=>`<tr>
+    <td>${u.avatar||'🃏'} <strong style="color:var(--text)">${u.username}</strong></td>
+    <td style="color:var(--green)">+${fmt(enc)}</td>
+    <td style="color:var(--red)">-${fmt(dec)}</td>
+    <td style="color:var(--blue)">+${fmt(rechargeU)}</td>
+    <td style="color:var(--amber)">-${fmt(retraitU)}</td>
+    <td style="color:var(--purple)">-${fmt(koniCost)}</td>
+    <td class="${pnl>=0?'pnl-pos':'pnl-neg'}">${pnl>=0?'+':''}${fmt(pnl)}</td>
+    <td>${pnl>0
+      ? '<span class="pnl-badge winner">PROFITABLE</span>'
+      : pnl<0 ? '<span class="pnl-badge loser">GAGNANT</span>'
+      : '<span class="pnl-badge even">NEUTRE</span>'}</td>
+  </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-dim);padding:30px;">Aucune donnée</td></tr>';
+
+  // Modules financiers supplémentaires
+  renderTableRevenue(users);
+  renderKoniEconomy(users);
+  renderAlertesSolde(users);
+
+  // Grand livre
+  document.getElementById('ledgerCount').textContent = c.ledger.length + ' entrées';
+  const ll = document.getElementById('ledgerList');
+  ll.innerHTML = c.ledger.slice(0,100).map(e=>`
+    <div class="ledger-row">
+      <div class="ledger-ts">${new Date(e.ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="ledger-user">${e.user}</div>
+      <div class="ledger-label">${e.label}</div>
+      <div class="ledger-amt ${e.dir==='in'||e.dir==='recharge'?'pos':e.dir==='out'||e.dir==='retrait'||e.dir==='koni'?'neg':'neutral'}" style="${e.dir==='recharge'?'color:var(--blue)':e.dir==='retrait'?'color:var(--amber)':e.dir==='koni'?'color:var(--purple)':''}">${e.dir==='in'||e.dir==='recharge'?'+':e.dir==='out'||e.dir==='retrait'||e.dir==='koni'?'-':''}${fmt(Math.abs(e.amount))} FCFA</div>
+      <div class="ledger-balance">Solde: ${(e.balance||0).toLocaleString('fr-FR')} FCFA</div>
+    </div>
+  `).join('') || '<div style="color:var(--text-dim);padding:20px;text-align:center;">Aucune transaction</div>';
+}
+
+function renderCashFlow(ledger){
+  const now = Date.now();
+  let filtered = ledger;
+  if(cfDays>0){ const cutoff=now-cfDays*864e5; filtered=ledger.filter(e=>e.ts>=cutoff); }
+  const list = document.getElementById('cashFlowList');
+  list.innerHTML = filtered.slice(0,40).map(e=>`
+    <div class="cf-row">
+      <div class="cf-type ${e.dir}"></div>
+      <div class="cf-date">${new Date(e.ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</div>
+      <div class="cf-label">${e.user} — ${e.label}</div>
+      <div class="cf-amount ${e.dir==='in'?'pos':e.dir==='out'?'neg':'neutral'}">
+        ${e.dir==='in'?'+':e.dir==='out'?'-':''}${fmt(Math.abs(e.amount))} FCFA
+      </div>
+    </div>
+  `).join('') || '<div style="color:var(--text-dim);padding:16px;font-size:11px;">Aucun flux sur cette période</div>';
+}
+
+// ── REVENU PAR TABLE ──
+function renderTableRevenue(users){
+  const TABLES = [
+    { id:'leki',    name:'Leki',    icon:'🟢', mise:100  },
+    { id:'yaya',    name:'Yaya',    icon:'🔵', mise:500  },
+    { id:'mokolo',  name:'Mokolo',  icon:'🟡', mise:1000 },
+    { id:'mokonzi', name:'Mokonzi', icon:'🔴', mise:2500 },
+  ];
+  const stats = {};
+  TABLES.forEach(t=>{ stats[t.id]={...t, parties:0, enc:0, dec:0}; });
+  users.forEach(u=>(u.history||[]).forEach(h=>{
+    const t = stats[h.table];
+    if(!t) return;
+    t.parties++;
+    if(h.result==='win')   t.dec += Math.abs(h.change||0);
+    else                   t.enc += h.mise||0;
+  }));
+  const tbody = document.getElementById('tableRevenueTbody');
+  tbody.innerHTML = TABLES.map(t=>{
+    const s = stats[t.id];
+    const net = s.enc - s.dec;
+    const edge = s.parties>0 ? Math.round((s.enc/(s.parties*s.mise||1))*100) : 0;
+    return `<tr>
+      <td>${t.icon} <strong style="color:var(--text)">${t.name}</strong></td>
+      <td style="color:var(--amber)">${t.mise.toLocaleString('fr-FR')} FCFA</td>
+      <td>${s.parties}</td>
+      <td style="color:var(--green)">+${fmt(s.enc)} FCFA</td>
+      <td style="color:var(--red)">-${fmt(s.dec)} FCFA</td>
+      <td class="${net>=0?'pnl-pos':'pnl-neg'}">${net>=0?'+':''}${fmt(net)} FCFA</td>
+      <td style="color:var(--blue)">${edge}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ÉCONOMIE KONI ──
+function renderKoniEconomy(users){
+  let totalKoni=0, totalConvertisFcfa=0, totalConvertisKoni=0;
+  users.forEach(u=>{
+    totalKoni += u.koniBalance||0;
+    (u.transactions||[]).forEach(tx=>{
+      if(tx.type==='koni_convert'){
+        totalConvertisKoni += tx.koniUsed||0;
+        totalConvertisFcfa += Math.abs(tx.amount||0);
+      }
+    });
+  });
+  const valeurEnCirculation = Math.floor(totalKoni * 0.5);
+  document.getElementById('koniKpiRow').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Koni en circulation</div><div class="kpi-val" style="color:var(--purple)">${totalKoni.toLocaleString('fr-FR')}</div><div class="kpi-sub">Total tous joueurs</div></div>
+    <div class="kpi blue"><div class="kpi-label">Valeur FCFA latente</div><div class="kpi-val">${valeurEnCirculation.toLocaleString('fr-FR')}</div><div class="kpi-sub">Si tout converti</div></div>
+    <div class="kpi green"><div class="kpi-label">FCFA déjà convertis</div><div class="kpi-val">${fmt(totalConvertisFcfa)}</div><div class="kpi-sub">Conversions passées</div></div>
+  `;
+  const tbody = document.getElementById('koniTbody');
+  const rows = users.filter(u=>(u.koniBalance||0)>0).sort((a,b)=>(b.koniBalance||0)-(a.koniBalance||0));
+  tbody.innerHTML = rows.map(u=>{
+    const val = Math.floor((u.koniBalance||0)*0.5);
+    const expirant = u.lastKoniActivity && (Date.now()-u.lastKoniActivity)/86400000 > 20;
+    return `<tr>
+      <td>${u.avatar||'🃏'} <strong style="color:var(--text)">${u.username}</strong></td>
+      <td style="color:var(--purple)">${(u.koniBalance||0).toLocaleString('fr-FR')} ⭐</td>
+      <td style="color:var(--blue)">${val.toLocaleString('fr-FR')} FCFA</td>
+      <td style="color:var(--text-dim)">${totalConvertisKoni.toLocaleString('fr-FR')} ⭐</td>
+      <td>${expirant
+        ? '<span class="status-badge banned">EXPIRE BIENTÔT</span>'
+        : '<span class="status-badge active">ACTIF</span>'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:20px;">Aucun joueur avec des Koni</td></tr>';
+}
+
+// ── ALERTES SOLDE FAIBLE ──
+function renderAlertesSolde(users){
+  const MISE_MIN = 100;
+  const TABLES = [
+    { seuil:100,  label:'Aucune table accessible',    color:'var(--red)',    icon:'🔴' },
+    { seuil:500,  label:'Seulement table Leki (100F)', color:'var(--amber)', icon:'🟡' },
+    { seuil:1000, label:'Leki + Yaya accessibles',     color:'var(--blue)',  icon:'🔵' },
+  ];
+  const enDanger = users.filter(u=>!u.banned && (u.balance||0)<1000).sort((a,b)=>(a.balance||0)-(b.balance||0));
+  const el = document.getElementById('alertesSolde');
+  if(!enDanger.length){
+    el.innerHTML='<div style="color:var(--green);font-size:12px;padding:16px;letter-spacing:1px;">✓ Tous les joueurs actifs ont un solde suffisant.</div>';
+    return;
+  }
+  el.innerHTML=`
+    <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;margin-bottom:12px;">${enDanger.length} joueur(s) en difficulté financière</div>
+    <table class="players-table">
+      <thead><tr><th>Joueur</th><th>Solde actuel</th><th>Accès tables</th><th>Action</th></tr></thead>
+      <tbody>${enDanger.map(u=>{
+        const bal = u.balance||0;
+        const tier = bal<MISE_MIN ? TABLES[0] : bal<500 ? TABLES[1] : TABLES[2];
+        return `<tr>
+          <td>${u.avatar||'🃏'} <strong style="color:var(--text)">${u.username}</strong></td>
+          <td style="color:${tier.color};font-family:'Orbitron',monospace;">${bal.toLocaleString('fr-FR')} FCFA</td>
+          <td style="color:${tier.color};font-size:10px;">${tier.icon} ${tier.label}</td>
+          <td><button class="action-btn view" onclick="setEmit(500);document.getElementById('emitTarget').value='${u.username}';showPanel('caisse',document.querySelector('.nav-item[onclick*=caisse]'))">RECHARGER</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+function setCFPeriod(days, btn){
+  cfDays = days;
+  document.querySelectorAll('#cf7,#cf30,#cfAll').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('cfPeriod').textContent = days===7?'7 DERNIERS JOURS':days===30?'30 DERNIERS JOURS':'TOUT';
+  const c = computeCaisse();
+  renderCashFlow(c.ledger);
+}
+
+function setEmit(v){ document.getElementById('emitAmount').value=v; }
+
+async function emitMoney(){
+  const amount = parseInt(document.getElementById('emitAmount').value)||0;
+  const target = document.getElementById('emitTarget').value;
+  const msg = document.getElementById('emitMsg');
+  if(amount<=0){ msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Montant invalide.'; return; }
+
+  const usersRaw = JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const now = Date.now();
+  let count=0;
+
+  Object.values(usersRaw).forEach(u=>{
+    if(u.banned) return;
+    if(target!=='all' && u.username!==target) return;
+    u.balance = (u.balance||0) + amount;
+    u.transactions = u.transactions||[];
+    u.transactions.unshift({id:now+count, type:'bonus', amount, label:'💵 Injection casino — '+amount.toLocaleString('fr-FR')+' FCFA', date:now+count, balance:u.balance});
+    if(u.transactions.length>100) u.transactions=u.transactions.slice(0,100);
+    count++;
+  });
+
+  localStorage.setItem('poko_users', JSON.stringify(usersRaw));
+  addAdminLog('SYS', 'Émission '+amount.toLocaleString('fr-FR')+' FCFA → '+(target==='all'?'Tous les joueurs':target)+' ('+count+' compte(s))');
+
+  msg.style.display='block';
+  msg.style.color='var(--green)';
+  msg.textContent='✓ '+amount.toLocaleString('fr-FR')+' FCFA émis vers '+(target==='all'?count+' joueur(s)':target)+' avec succès.';
+  setTimeout(()=>{ msg.style.display='none'; }, 4000);
+  renderCaisse();
+}
+
+
+// ── TRANSFERT DE DONNÉES ──────────────────────────────────
+
+function renderDataTransfer(){
+  const users = getUsers();
+  const rtp = getRTPSettings();
+  const diff = (()=>{ try{return JSON.parse(localStorage.getItem('poko_difficulty')||'null');}catch(e){return null;} })();
+  const settings = getAdminSettings();
+  const logs = getAdminLogs();
+
+  document.getElementById('exportSummary').innerHTML = `
+    <div style="color:var(--amber);">📦 Contenu de l'export :</div>
+    <div>👥 Joueurs : <strong style="color:var(--text)">${users.length}</strong></div>
+    <div>🎰 Profils RTP : <strong style="color:var(--text)">${Object.keys(rtp).length}</strong></div>
+    <div>🤖 Difficulté IA : <strong style="color:var(--text)">${diff?diff.level.toUpperCase():'Non définie'}</strong></div>
+    <div>📋 Logs admin : <strong style="color:var(--text)">${logs.length}</strong></div>
+    <div>⚙️ Paramètres : <strong style="color:var(--text)">Inclus</strong></div>
+  `;
+}
+
+function exportData(){
+  const payload = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    poko_users:      localStorage.getItem('poko_users')      || '{}',
+    poko_rtp:        localStorage.getItem('poko_rtp')        || '{}',
+    poko_difficulty: localStorage.getItem('poko_difficulty') || 'null',
+    poko_admin_settings: localStorage.getItem('poko_admin_settings') || '{}',
+    poko_admin_logs: localStorage.getItem('poko_admin_logs') || '[]',
+    poko_subprofiles:localStorage.getItem('poko_subprofiles')|| '[]',
+    poko_caisse:     localStorage.getItem('poko_caisse')     || 'null',
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'poko_data_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  addAdminLog('SYS', 'Export de données effectué');
+}
+
+let _importPayload = null;
+function previewImport(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      _importPayload = data;
+      const users = Object.values(JSON.parse(data.poko_users||'{}')).length;
+      const rtp = Object.keys(JSON.parse(data.poko_rtp||'{}')).length;
+      const diff = JSON.parse(data.poko_difficulty||'null');
+      const logs = JSON.parse(data.poko_admin_logs||'[]').length;
+      document.getElementById('importPreview').style.display='block';
+      document.getElementById('importPreview').innerHTML = `
+        <div style="color:var(--green);">✓ Fichier valide — exporté le ${data.exportedAt?new Date(data.exportedAt).toLocaleString('fr-FR'):'date inconnue'}</div>
+        <div>👥 Joueurs : <strong style="color:var(--text)">${users}</strong></div>
+        <div>🎰 Profils RTP : <strong style="color:var(--text)">${rtp}</strong></div>
+        <div>🤖 Difficulté : <strong style="color:var(--text)">${diff?diff.level.toUpperCase():'Non définie'}</strong></div>
+        <div>📋 Logs : <strong style="color:var(--text)">${logs}</strong></div>
+      `;
+      document.getElementById('importBtn').style.display='block';
+    } catch(err) {
+      document.getElementById('importPreview').style.display='block';
+      document.getElementById('importPreview').innerHTML = '<span style="color:var(--red)">❌ Fichier JSON invalide.</span>';
+      document.getElementById('importBtn').style.display='none';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function importData(){
+  if(!_importPayload){ return; }
+  const keys = ['poko_users','poko_rtp','poko_difficulty','poko_admin_settings','poko_admin_logs','poko_subprofiles','poko_caisse'];
+  keys.forEach(k=>{ if(_importPayload[k] !== undefined) localStorage.setItem(k, _importPayload[k]); });
+  addAdminLog('SYS','Import de données effectué');
+  const msg = document.getElementById('importMsg');
+  msg.style.display='block'; msg.style.color='var(--green)';
+  msg.textContent='✓ Données importées avec succès. Rechargement...';
+  setTimeout(()=>location.reload(), 1500);
+}
+
+function injectDemoData(){
+  const now = Date.now();
+  const demoUsers = {
+    'MAKOSSO': {
+      username:'MAKOSSO', email:'makosso@poko.cg', avatar:'🦁',
+      password: btoa('demo123'), balance:12500,
+      totalGames:28, totalWins:14, totalEarned:18000, totalLost:8500,
+      longestWinStreak:5, currentStreak:2, banned:false, vip:true,
+      createdAt: now - 30*864e5, lastLogin: now - 864e5,
+      transactions:[
+        {id:1,type:'win',amount:2000,label:'🏆 Victoire — gain 2000 FCFA',date:now-3600e3,balance:12500},
+        {id:2,type:'loss',amount:-500,label:'💀 Défaite — mise perdue',date:now-7200e3,balance:10500},
+        {id:3,type:'deposit',amount:5000,label:'💳 Dépôt simulé',date:now-864e5,balance:11000},
+        {id:4,type:'bonus',amount:500,label:'☀️ Bonus quotidien',date:now-2*864e5,balance:6000},
+      ]
+    },
+    'NGANGA': {
+      username:'NGANGA', email:'nganga@poko.cg', avatar:'🐯',
+      password: btoa('demo123'), balance:4200,
+      totalGames:15, totalWins:4, totalEarned:5000, totalLost:12000,
+      longestWinStreak:2, currentStreak:0, banned:false, vip:false,
+      createdAt: now - 15*864e5, lastLogin: now - 2*864e5,
+      transactions:[
+        {id:5,type:'loss',amount:-1000,label:'💀 Défaite — mise perdue',date:now-864e5,balance:4200},
+        {id:6,type:'win',amount:3000,label:'🏆 Victoire — gain 3000 FCFA',date:now-3*864e5,balance:5200},
+        {id:7,type:'bonus',amount:5000,label:'🎁 Bonus bienvenue',date:now-15*864e5,balance:5000},
+      ]
+    },
+    'MBOUNGOU': {
+      username:'MBOUNGOU', email:'mboungou@poko.cg', avatar:'🎭',
+      password: btoa('demo123'), balance:800,
+      totalGames:42, totalWins:8, totalEarned:9000, totalLost:22000,
+      longestWinStreak:3, currentStreak:0, banned:false, vip:false,
+      createdAt: now - 60*864e5, lastLogin: now - 5*864e5,
+      transactions:[
+        {id:8,type:'loss',amount:-2000,label:'💀 Défaite — mise perdue',date:now-5*864e5,balance:800},
+        {id:9,type:'loss',amount:-1000,label:'💀 Défaite — mise perdue',date:now-6*864e5,balance:2800},
+        {id:10,type:'deposit',amount:3000,label:'💳 Dépôt simulé',date:now-7*864e5,balance:3800},
+      ]
+    },
+    'LOUBAKI': {
+      username:'LOUBAKI', email:'loubaki@poko.cg', avatar:'🃏',
+      password: btoa('demo123'), balance:0,
+      totalGames:5, totalWins:0, totalEarned:0, totalLost:5000,
+      longestWinStreak:0, currentStreak:0, banned:true, vip:false,
+      createdAt: now - 5*864e5, lastLogin: now - 4*864e5,
+      transactions:[
+        {id:11,type:'loss',amount:-1000,label:'💀 Défaite — mise perdue',date:now-4*864e5,balance:0},
+        {id:12,type:'bonus',amount:5000,label:'🎁 Bonus bienvenue',date:now-5*864e5,balance:5000},
+      ]
+    }
+  };
+
+  localStorage.setItem('poko_users', JSON.stringify(demoUsers));
+  localStorage.setItem('poko_rtp', JSON.stringify({MAKOSSO:65,NGANGA:45,MBOUNGOU:30,LOUBAKI:50}));
+  localStorage.setItem('poko_difficulty', JSON.stringify({level:'mid',casse:60,memory:50,aggro:40,delay:900}));
+  addAdminLog('SYS','Données de démonstration injectées (4 joueurs)');
+
+  const msg = document.getElementById('demoMsg');
+  msg.style.display='inline'; msg.style.color='var(--green)';
+  msg.textContent='✓ 4 joueurs de démo créés. Rechargement...';
+  setTimeout(()=>location.reload(), 1200);
+}
+
+function clearAllData(){
+  if(!confirm('⚠️ Supprimer TOUTES les données (joueurs, logs, paramètres) ?')) return;
+  ['poko_users','poko_rtp','poko_difficulty','poko_admin_settings','poko_admin_logs','poko_subprofiles','poko_caisse'].forEach(k=>localStorage.removeItem(k));
+  location.reload();
+}
+
+// ── SOUS-PROFILS ──────────────────────────────────────────
+
+function getSPs(){ try{return JSON.parse(localStorage.getItem('poko_subprofiles')||'[]');}catch(e){return[];} }
+function saveSPs(l){ localStorage.setItem('poko_subprofiles',JSON.stringify(l)); }
+
+// Check if logged in via subprofile and restrict nav
+(function restrictSubProfile(){
+  const spUser = sessionStorage.getItem('poko_admin_sub');
+  if(!spUser) return;
+  const sps = getSPs();
+  const sp = sps.find(s=>s.user===spUser);
+  if(!sp) return;
+  // Hide nav items not in perms
+  const allModules = ['dashboard','players','rtp','difficulty','logs','finlog','caisse','retention','retraits','recharges','koni','subprofiles','settings'];
+  allModules.forEach(mod=>{
+    if(!sp.perms.includes(mod)){
+      document.querySelectorAll('.nav-item').forEach(n=>{
+        if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+mod+"'")){
+          n.style.display='none';
+        }
+      });
+    }
+  });
+  // Show "restricted" badge
+  const logo = document.querySelector('.sidebar-logo');
+  if(logo){
+    const badge=document.createElement('div');
+    badge.style.cssText='font-size:8px;letter-spacing:2px;color:var(--amber);margin-top:4px;padding:3px 8px;background:var(--amber-dim);border:1px solid rgba(230,57,70,.3);';
+    badge.textContent='ACCÈS: '+sp.role.toUpperCase();
+    logo.appendChild(badge);
+  }
+})();
+
+// ── Rôle presets ─────────────────────────────────────────────────────────────
+const SP_ROLE_PRESETS = {
+  moderateur: { label:'Modérateur',   color:'var(--blue)',  perms:['dashboard','players','logs'] },
+  comptable:  { label:'Comptable',    color:'var(--green)', perms:['dashboard','caisse','finlog','retention','retraits','recharges','koni'] },
+  admin:      { label:'Admin',        color:'var(--amber)', perms:['dashboard','players','logs','finlog','caisse','retention','retraits','recharges','koni','difficulty'] },
+  custom:     { label:'Personnalisé', color:'var(--text-dim)', perms:[] },
+};
+
+let _spCurrentRole = '';
+
+function selectSpRole(role, btn){
+  _spCurrentRole = role;
+  document.querySelectorAll('.sp-role-btn').forEach(b => b.style.outline='none');
+  if(btn) btn.style.outline='2px solid currentColor';
+
+  const preset = SP_ROLE_PRESETS[role];
+  const inputs = document.querySelectorAll('#sp-perms input[name="perm"]');
+
+  if(role !== 'custom'){
+    inputs.forEach(inp => inp.checked = preset.perms.includes(inp.value));
+    const badge = document.getElementById('sp-role-selected');
+    if(badge) badge.textContent = `Rôle sélectionné : ${preset.label} — ${preset.perms.length} accès configurés automatiquement`;
+  } else {
+    const badge = document.getElementById('sp-role-selected');
+    if(badge) badge.textContent = 'Mode personnalisé — cochez les accès manuellement';
+  }
+}
+
+function generateSpPassword(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
+  let pwd = '';
+  for(let i=0;i<10;i++) pwd += chars[Math.floor(Math.random()*chars.length)];
+  const input = document.getElementById('sp-pass');
+  input.value = pwd;
+  input.type = 'text';
+  // Afficher la zone de copie
+  const user = document.getElementById('sp-user').value.trim() || '(identifiant non saisi)';
+  const box  = document.getElementById('sp-credentials-box');
+  const txt  = document.getElementById('sp-credentials-text');
+  if(box && txt){
+    txt.innerHTML = `Identifiant : <strong style="color:var(--amber)">${user}</strong><br>Mot de passe : <strong style="color:var(--amber)">${pwd}</strong>`;
+    box.style.display = 'block';
+  }
+}
+
+function copySpCredentials(){
+  const user = document.getElementById('sp-user').value.trim();
+  const pass = document.getElementById('sp-pass').value;
+  const text = `Identifiant : ${user}\nMot de passe : ${pass}`;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = event.target;
+    btn.textContent = '✓ COPIÉ'; btn.style.color='var(--green)';
+    setTimeout(()=>{ btn.textContent='📋 COPIER'; btn.style.color='var(--green)'; },2000);
+  }).catch(()=>{ alert(text); });
+}
+
+function renderSubProfiles(){
+  const sps = getSPs();
+  const list = document.getElementById('sp-list');
+  document.getElementById('sp-count').textContent = sps.length + ' profil(s)';
+  if(!list) return;
+  const perm_labels = {
+    dashboard:'📊',players:'👥',rtp:'🎰',difficulty:'🤖',
+    logs:'📋',finlog:'📄',caisse:'💵',retention:'📈',
+    retraits:'🏦',recharges:'💳',koni:'⭐',settings:'⚙️'
+  };
+  const role_colors = {
+    Modérateur:'var(--blue)',Comptable:'var(--green)',Admin:'var(--amber)',Personnalisé:'var(--text-dim)',Superviseur:'var(--text-dim)'
+  };
+  list.innerHTML = sps.length===0
+    ? '<div style="color:var(--text-dim);font-size:11px;padding:16px;text-align:center;">Aucun sous-profil créé</div>'
+    : sps.map((sp,i)=>{
+        const roleColor = role_colors[sp.role] || 'var(--text-dim)';
+        return `
+        <div style="background:rgba(230,57,70,.05);border:1px solid var(--border);padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div>
+              <div style="font-size:13px;color:var(--text);font-weight:700;">${sp.user}</div>
+              <div style="margin-top:4px;">
+                <span style="font-size:9px;padding:1px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:${roleColor};letter-spacing:2px;">${sp.role||'SUPERVISEUR'}</span>
+                <span style="font-size:9px;color:var(--text-dim);margin-left:8px;letter-spacing:1px;">Créé le ${new Date(sp.created).toLocaleDateString('fr-FR')}</span>
+              </div>
+            </div>
+            <button class="action-btn ban" onclick="deleteSP(${i})">SUPPRIMER</button>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            ${sp.perms.map(p=>`<span style="font-size:9px;padding:2px 6px;background:var(--amber-dim);color:var(--amber);border:1px solid rgba(230,57,70,.25);">${perm_labels[p]||'?'} ${p}</span>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+}
+
+function createSubProfile(){
+  const user = document.getElementById('sp-user').value.trim();
+  const pass = document.getElementById('sp-pass').value;
+  const perms = [...document.querySelectorAll('#sp-perms input[name="perm"]:checked')].map(c=>c.value);
+  const msg = document.getElementById('sp-msg');
+
+  if(!user||!pass){ msg.style.display='block';msg.style.color='var(--red)';msg.textContent='Remplis tous les champs.';return; }
+  if(perms.length===0){ msg.style.display='block';msg.style.color='var(--red)';msg.textContent='Sélectionne au moins un accès.';return; }
+
+  const sps = getSPs();
+  if(sps.find(s=>s.user===user)){ msg.style.display='block';msg.style.color='var(--red)';msg.textContent='Cet identifiant existe déjà.';return; }
+
+  const roleLabel = _spCurrentRole && SP_ROLE_PRESETS[_spCurrentRole] ? SP_ROLE_PRESETS[_spCurrentRole].label : 'Personnalisé';
+  sps.push({ user, pass: btoa(pass), perms, role: roleLabel, created: Date.now() });
+  saveSPs(sps);
+  addAdminLog('SYS','Sous-profil créé : '+user+' ('+perms.join(',')+')');
+
+  document.getElementById('sp-user').value='';
+  document.getElementById('sp-pass').value='';
+  msg.style.display='block'; msg.style.color='var(--green)';
+  msg.textContent='✓ Sous-profil "'+user+'" créé avec succès.';
+  setTimeout(()=>msg.style.display='none',3000);
+  renderSubProfiles();
+}
+
+function deleteSP(i){
+  const sps=getSPs(); sps.splice(i,1); saveSPs(sps);
+  addAdminLog('SYS','Sous-profil supprimé');
+  renderSubProfiles();
+}
+
+// Init subprofiles panel on load
+document.addEventListener('DOMContentLoaded',()=>{ renderSubProfiles(); });
+setTimeout(()=>renderSubProfiles(),100);
+
+// ══════════════════════════════════════════════
+//  KONI
+// ══════════════════════════════════════════════
+const KONI_DEFAULTS = { perHundredFcfa:5, rate:0.5, expiryDays:30, minConvert:500, dailyBonus:50, welcomeBonus:200 };
+
+function getKoniConfig(){
+  try{ return {...KONI_DEFAULTS, ...JSON.parse(localStorage.getItem('poko_koni_config')||'{}')}; }
+  catch(e){ return {...KONI_DEFAULTS}; }
+}
+
+function renderKoniPanel(){
+  const cfg = getKoniConfig();
+  const users = getUsers();
+
+  // KPIs
+  const totalKoni = users.reduce((a,u)=>a+(u.koniBalance||0),0);
+  const valFcfa   = Math.floor(totalKoni * cfg.rate);
+  const jouAvecKoni = users.filter(u=>(u.koniBalance||0)>=cfg.minConvert).length;
+  let totalConvKoni=0, totalConvFcfa=0;
+  users.forEach(u=>(u.transactions||[]).forEach(tx=>{
+    if(tx.type==='koni_convert'){ totalConvFcfa+=Math.abs(tx.amount||0); }
+  }));
+
+  document.getElementById('koniAdminKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Koni en circulation</div><div class="kpi-val" style="color:var(--purple)">${totalKoni.toLocaleString('fr-FR')}</div><div class="kpi-sub">⭐ Total</div></div>
+    <div class="kpi blue"><div class="kpi-label">Valeur FCFA latente</div><div class="kpi-val">${valFcfa.toLocaleString('fr-FR')}</div><div class="kpi-sub">Si tout converti</div></div>
+    <div class="kpi green"><div class="kpi-label">Joueurs convertibles</div><div class="kpi-val">${jouAvecKoni}</div><div class="kpi-sub">≥ ${cfg.minConvert} Koni</div></div>
+    <div class="kpi red"><div class="kpi-label">FCFA déjà convertis</div><div class="kpi-val">${fmt(totalConvFcfa)}</div><div class="kpi-sub">Sorties caisses Koni</div></div>
+  `;
+
+  // Remplir les champs
+  document.getElementById('kPerHundred').value = cfg.perHundredFcfa;
+  document.getElementById('kRate').value        = cfg.rate;
+  document.getElementById('kMinConvert').value  = cfg.minConvert;
+  document.getElementById('kExpiry').value      = cfg.expiryDays;
+  document.getElementById('kWelcome').value     = cfg.welcomeBonus;
+  document.getElementById('kDaily').value       = cfg.dailyBonus;
+
+  // Labels "actuellement"
+  document.getElementById('kCurPer100').textContent  = cfg.perHundredFcfa;
+  document.getElementById('kCurRate').textContent    = cfg.rate;
+  document.getElementById('kCurMin').textContent     = cfg.minConvert;
+  document.getElementById('kCurExpiry').textContent  = cfg.expiryDays;
+
+  // Simulateur
+  updateKoniSim();
+
+  // Expirations proches
+  const now = Date.now();
+  const alertSeuil = cfg.expiryDays - 10; // avertir 10j avant
+  const aRisque = users.filter(u=>{
+    if(!(u.koniBalance>0) || !u.lastKoniActivity) return false;
+    const jRestants = cfg.expiryDays - (now - u.lastKoniActivity)/864e5;
+    return jRestants <= 10 && jRestants > 0;
+  }).sort((a,b)=>{
+    const ja = cfg.expiryDays - (now-a.lastKoniActivity)/864e5;
+    const jb = cfg.expiryDays - (now-b.lastKoniActivity)/864e5;
+    return ja - jb;
+  });
+
+  const el = document.getElementById('koniExpiryList');
+  el.innerHTML = aRisque.length ? `
+    <table class="players-table">
+      <thead><tr><th>Joueur</th><th>Koni</th><th>Valeur FCFA</th><th>Expire dans</th><th>Action</th></tr></thead>
+      <tbody>${aRisque.map(u=>{
+        const jRestants = Math.ceil(cfg.expiryDays - (now-u.lastKoniActivity)/864e5);
+        const urgColor = jRestants<=3 ? 'var(--red)' : 'var(--amber)';
+        return `<tr>
+          <td>${u.avatar||'🃏'} <strong style="color:var(--text)">${u.username}</strong></td>
+          <td style="color:var(--purple)">${(u.koniBalance||0).toLocaleString('fr-FR')} ⭐</td>
+          <td style="color:var(--blue)">${Math.floor((u.koniBalance||0)*cfg.rate).toLocaleString('fr-FR')} FCFA</td>
+          <td style="color:${urgColor};font-family:'Orbitron',monospace;">${jRestants}j</td>
+          <td><button class="action-btn view" onclick="prolongerKoni('${u.username}')">PROLONGER</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>` :
+    '<div style="color:var(--green);font-size:11px;padding:16px;letter-spacing:1px;">✓ Aucun Koni proche de l\'expiration</div>';
+}
+
+function updateKoniSim(){
+  const cfg = getKoniConfig();
+  const amount = parseInt(document.getElementById('kSimAmount')?.value)||0;
+  if(!amount){ document.getElementById('koniSimResult').innerHTML=''; return; }
+  // Lire les valeurs actuelles des inputs (pas encore sauvegardés)
+  const per100 = parseFloat(document.getElementById('kPerHundred')?.value) || cfg.perHundredFcfa;
+  const rate   = parseFloat(document.getElementById('kRate')?.value)       || cfg.rate;
+  const kEarned = Math.floor(amount/100) * per100;
+  const fcfaEq  = Math.floor(kEarned * rate);
+  document.getElementById('koniSimResult').innerHTML=`
+    <div>Koni gagnés : <span style="color:var(--purple);font-weight:700;">${kEarned} ⭐</span></div>
+    <div>Équivalent FCFA si converti : <span style="color:var(--blue)">${fcfaEq.toLocaleString('fr-FR')} FCFA</span></div>
+    <div>Coût casino (Koni) : <span style="color:var(--red)">${fcfaEq.toLocaleString('fr-FR')} FCFA</span></div>
+    <div style="margin-top:4px;color:var(--amber)">Rapport coût/recharge : ${amount>0?((fcfaEq/amount)*100).toFixed(1):0}%</div>
+  `;
+}
+
+function saveKoniConfig(){
+  const cfg = {
+    perHundredFcfa: parseFloat(document.getElementById('kPerHundred').value) || KONI_DEFAULTS.perHundredFcfa,
+    rate:           parseFloat(document.getElementById('kRate').value)        || KONI_DEFAULTS.rate,
+    minConvert:     parseInt(document.getElementById('kMinConvert').value)    || KONI_DEFAULTS.minConvert,
+    expiryDays:     parseInt(document.getElementById('kExpiry').value)        || KONI_DEFAULTS.expiryDays,
+    welcomeBonus:   parseInt(document.getElementById('kWelcome').value)       || KONI_DEFAULTS.welcomeBonus,
+    dailyBonus:     parseInt(document.getElementById('kDaily').value)         || KONI_DEFAULTS.dailyBonus,
+  };
+  localStorage.setItem('poko_koni_config', JSON.stringify(cfg));
+  addAdminLog('SYS', `Paramètres Koni mis à jour — taux:${cfg.perHundredFcfa}/100F, valeur:${cfg.rate}FCFA, expiry:${cfg.expiryDays}j`);
+  const msg = document.getElementById('koniSaveMsg');
+  msg.style.display='inline'; setTimeout(()=>msg.style.display='none', 3000);
+  renderKoniPanel();
+}
+
+function resetKoniConfig(){
+  if(!confirm('Remettre tous les paramètres Koni par défaut ?')) return;
+  localStorage.removeItem('poko_koni_config');
+  addAdminLog('SYS','Paramètres Koni remis par défaut');
+  renderKoniPanel();
+}
+
+function prolongerKoni(username){
+  const users = JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const u = users[username]; if(!u) return;
+  u.lastKoniActivity = Date.now();
+  localStorage.setItem('poko_users', JSON.stringify(users));
+  addAdminLog('SYS', `Koni prolongés pour ${username}`);
+  renderKoniPanel();
+}
+
+// ══════════════════════════════════════════════
+//  RÉTENTION
+// ══════════════════════════════════════════════
+let retDays = 7;
+function renderRetention(days, btn){
+  retDays = days||7;
+  if(btn){ document.querySelectorAll('#panel-retention .log-filter').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+  const label = document.getElementById('retPeriodLabel');
+  if(label) label.textContent = days===7?'7 DERNIERS JOURS':days===30?'30 DERNIERS JOURS':'TOUT';
+
+  const users = getUsers().filter(u=>!u.banned);
+  const now = Date.now();
+  const cutoff = days>0 ? now - days*864e5 : 0;
+
+  // Déterminer la dernière partie de chaque joueur
+  function lastGame(u){
+    const h = u.history||[];
+    return h.length>0 ? Math.max(...h.map(e=>e.date||0)) : null;
+  }
+
+  const actifs = users.filter(u=>{ const lg=lastGame(u); return lg && lg>=cutoff; });
+  const inactifs = users.filter(u=>{ const lg=lastGame(u); return !lg || (cutoff>0 && lg<cutoff); });
+  const revient = users.filter(u=>(u.totalGames||0)>1).length;
+  const tauxRet = users.length>0 ? Math.round(revient/users.length*100) : 0;
+  const tauxAct = users.length>0 ? Math.round(actifs.length/users.length*100) : 0;
+  const avgGames = users.length>0 ? Math.round(users.reduce((a,u)=>a+(u.totalGames||0),0)/users.length) : 0;
+
+  // Badge sidebar
+  const badge = document.getElementById('retBadge');
+  if(badge) badge.textContent = tauxRet+'%';
+
+  document.getElementById('retKpiRow').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Taux de rétention</div><div class="kpi-val" style="color:${tauxRet>=50?'var(--green)':'var(--red)'}">${tauxRet}%</div><div class="kpi-sub">Joueurs > 1 partie</div></div>
+    <div class="kpi green"><div class="kpi-label">Actifs (période)</div><div class="kpi-val">${actifs.length}</div><div class="kpi-sub">${tauxAct}% de la base</div></div>
+    <div class="kpi red"><div class="kpi-label">Inactifs</div><div class="kpi-val">${inactifs.length}</div><div class="kpi-sub">À relancer</div></div>
+    <div class="kpi blue"><div class="kpi-label">Parties / joueur</div><div class="kpi-val">${avgGames}</div><div class="kpi-sub">Moyenne</div></div>
+  `;
+
+  // Liste actifs
+  document.getElementById('retActiveList').innerHTML = actifs.length ? actifs.sort((a,b)=>(lastGame(b)||0)-(lastGame(a)||0)).map(u=>{
+    const lg = lastGame(u);
+    const daysAgo = lg ? Math.floor((now-lg)/864e5) : '—';
+    return `<div class="feed-item"><div class="feed-dot win"></div><div class="feed-text" style="flex:1">${u.avatar||'🃏'} <strong>${u.username}</strong></div><div style="font-size:10px;color:var(--text-dim)">${daysAgo===0?'Aujourd\'hui':daysAgo+'j'} · ${u.totalGames||0} parties</div></div>`;
+  }).join('') : '<div style="color:var(--text-dim);font-size:11px;padding:16px;">Aucun actif sur la période</div>';
+
+  // Liste inactifs
+  document.getElementById('retInactiveList').innerHTML = inactifs.length ? inactifs.map(u=>{
+    const lg = lastGame(u);
+    const daysAgo = lg ? Math.floor((now-lg)/864e5) : '—';
+    return `<div class="feed-item"><div class="feed-dot lose"></div><div class="feed-text" style="flex:1">${u.avatar||'🃏'} <strong>${u.username}</strong></div><div style="font-size:10px;color:var(--red)">${daysAgo==='—'?'Jamais joué':daysAgo+'j sans jouer'}</div></div>`;
+  }).join('') : '<div style="color:var(--green);font-size:11px;padding:16px;">✓ Tous les joueurs sont actifs</div>';
+
+  // Classement fidélité
+  document.getElementById('retRankTbody').innerHTML = users.sort((a,b)=>(b.totalGames||0)-(a.totalGames||0)).map((u,i)=>{
+    const lg = lastGame(u);
+    const daysActive = Math.max(1,(now-(u.createdAt||now))/864e5);
+    const freq = ((u.totalGames||0)/daysActive*7).toFixed(1);
+    const profil = freq>=5?'🔥 Addict':freq>=2?'🎯 Régulier':freq>=0.5?'🌿 Occasionnel':'💤 Passif';
+    return `<tr>
+      <td style="color:var(--amber);font-family:'Orbitron',monospace;">${i+1}</td>
+      <td>${u.avatar||'🃏'} <strong style="color:var(--text)">${u.username}</strong></td>
+      <td>${u.totalGames||0}</td>
+      <td style="color:var(--green)">${u.totalWins||0}</td>
+      <td style="color:var(--text-dim);font-size:10px;">${lg?new Date(lg).toLocaleDateString('fr-FR'):'Jamais'}</td>
+      <td style="color:var(--blue)">${freq}/sem</td>
+      <td style="font-size:10px;">${profil}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+//  RETRAITS
+// ══════════════════════════════════════════════
+function getRetraits(){ try{ return JSON.parse(localStorage.getItem('poko_retraits')||'[]'); }catch(e){ return []; } }
+function saveRetraits(r){ localStorage.setItem('poko_retraits', JSON.stringify(r)); }
+
+let retFilter='all';
+function filterRetraits(f, btn){
+  retFilter=f;
+  document.querySelectorAll('#rfAll,#rfPend,#rfOk,#rfNo').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderRetraits();
+}
+
+function renderRetraits(){
+  const users = getUsers().filter(u=>!u.banned);
+  const sel = document.getElementById('retJoueur');
+  if(sel){ sel.innerHTML = users.map(u=>`<option value="${u.username}">${u.avatar||'🃏'} ${u.username} — ${(u.balance||0).toLocaleString('fr-FR')} FCFA</option>`).join(''); }
+
+  const all = getRetraits();
+  const pending = all.filter(r=>r.status==='pending');
+  const approved = all.filter(r=>r.status==='approved');
+  const totalApproved = approved.reduce((a,r)=>a+r.amount,0);
+
+  // Badge sidebar
+  const badge = document.getElementById('retBadgeCount');
+  if(badge){ badge.textContent = pending.length; badge.style.background = pending.length>0?'var(--amber)':'rgba(255,255,255,.15)'; }
+
+  document.getElementById('retKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">En attente</div><div class="kpi-val" style="color:var(--amber)">${pending.length}</div><div class="kpi-sub">À traiter</div></div>
+    <div class="kpi green"><div class="kpi-label">Approuvées</div><div class="kpi-val">${approved.length}</div><div class="kpi-sub">+${fmt(totalApproved)} FCFA versés</div></div>
+    <div class="kpi red"><div class="kpi-label">Refusées</div><div class="kpi-val">${all.filter(r=>r.status==='refused').length}</div><div class="kpi-sub">Total historique</div></div>
+    <div class="kpi blue"><div class="kpi-label">Total demandes</div><div class="kpi-val">${all.length}</div><div class="kpi-sub">Depuis le début</div></div>
+  `;
+
+  let list = all;
+  if(retFilter==='pending') list=pending;
+  else if(retFilter==='approved') list=approved;
+  else if(retFilter==='refused') list=all.filter(r=>r.status==='refused');
+  list = list.sort((a,b)=>b.requestedAt-a.requestedAt);
+
+  document.getElementById('retListCount').textContent = list.length+' entrée(s)';
+  const METHOD = {orange:'🟠 Orange Money', airtel:'🔴 Airtel Money', especes:'💵 Espèces'};
+  document.getElementById('retraitsTbody').innerHTML = list.map(r=>{
+    const statusHtml = r.status==='pending'
+      ? '<span class="status-badge" style="background:rgba(255,179,0,.15);color:var(--amber);border:1px solid rgba(255,179,0,.3);">EN ATTENTE</span>'
+      : r.status==='approved'
+        ? '<span class="status-badge active">APPROUVÉ</span>'
+        : '<span class="status-badge banned">REFUSÉ</span>';
+    const actions = r.status==='pending' ? `
+      <button class="action-btn view" onclick="approuverRetrait('${r.id}')">✓ APPROUVER</button>
+      <button class="action-btn ban" onclick="refuserRetrait('${r.id}')">✗ REFUSER</button>` : '—';
+    return `<tr>
+      <td style="font-size:10px;color:var(--text-dim)">${new Date(r.requestedAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${r.username}</td>
+      <td style="color:var(--amber);font-family:'Orbitron',monospace;">${r.amount.toLocaleString('fr-FR')} FCFA</td>
+      <td style="font-size:10px;">${METHOD[r.methode]||r.methode}</td>
+      <td>${statusHtml}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:30px;">Aucune demande</td></tr>';
+}
+
+function creerRetrait(){
+  const username = document.getElementById('retJoueur').value;
+  const amount = parseInt(document.getElementById('retMontant').value)||0;
+  const methode = document.getElementById('retMethode').value;
+  const msg = document.getElementById('retMsg');
+  if(!username){ msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Sélectionne un joueur.'; return; }
+  if(amount<1000){ msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Minimum 1 000 FCFA.'; return; }
+  const users = JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const u = users[username];
+  if(!u || (u.balance||0)<amount){ msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Solde insuffisant pour ce joueur.'; return; }
+  const retraits = getRetraits();
+  retraits.unshift({ id:'RET-'+Date.now(), username, amount, methode, status:'pending', requestedAt:Date.now() });
+  saveRetraits(retraits);
+  addAdminLog('SYS', `Demande retrait créée : ${username} — ${amount.toLocaleString('fr-FR')} FCFA`);
+  msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='✓ Demande enregistrée.';
+  document.getElementById('retMontant').value='';
+  renderRetraits();
+}
+
+function approuverRetrait(id){
+  const retraits = getRetraits();
+  const r = retraits.find(x=>x.id===id);
+  if(!r || r.status!=='pending') return;
+  const users = JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const u = users[r.username];
+  if(!u){ alert('Joueur introuvable.'); return; }
+  if((u.balance||0)<r.amount){ alert('Solde insuffisant pour approuver.'); return; }
+  u.balance -= r.amount;
+  const now = Date.now();
+  u.transactions = u.transactions||[];
+  u.transactions.unshift({id:now, type:'withdraw', amount:-r.amount, label:`🏦 Retrait ${r.methode} validé admin`, date:now, balance:u.balance});
+  users[r.username]=u; localStorage.setItem('poko_users',JSON.stringify(users));
+  r.status='approved'; r.processedAt=now;
+  saveRetraits(retraits);
+  addAdminLog('SYS', `Retrait APPROUVÉ : ${r.username} — ${r.amount.toLocaleString('fr-FR')} FCFA`);
+  renderRetraits();
+}
+
+function refuserRetrait(id){
+  const retraits = getRetraits();
+  const r = retraits.find(x=>x.id===id);
+  if(!r || r.status!=='pending') return;
+  r.status='refused'; r.processedAt=Date.now();
+  saveRetraits(retraits);
+  addAdminLog('SYS', `Retrait REFUSÉ : ${r.username} — ${r.amount.toLocaleString('fr-FR')} FCFA`);
+  renderRetraits();
+}
+
+// ══════════════════════════════════════════════
+//  RECHARGES
+// ══════════════════════════════════════════════
+function getRecharges(){ try{ return JSON.parse(localStorage.getItem('poko_recharges')||'[]'); }catch(e){ return []; } }
+function saveRecharges(r){ localStorage.setItem('poko_recharges', JSON.stringify(r)); }
+
+let rechFilter='all';
+function filterRecharges(f, btn){
+  rechFilter=f;
+  document.querySelectorAll('#rcfAll,#rcfPend,#rcfOk,#rcfNo').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderRecharges();
+}
+
+function renderRecharges(){
+  const users = getUsers().filter(u=>!u.banned);
+  const sel = document.getElementById('rechJoueur');
+  if(sel){ sel.innerHTML = users.map(u=>`<option value="${u.username}">${u.avatar||'🃏'} ${u.username} — ${(u.balance||0).toLocaleString('fr-FR')} FCFA</option>`).join(''); }
+
+  const all = getRecharges();
+  const pending = all.filter(r=>r.status==='pending');
+  const approved = all.filter(r=>r.status==='approved');
+  const totalApproved = approved.reduce((a,r)=>a+r.amount,0);
+
+  // Badge sidebar
+  const badge = document.getElementById('rechBadgeCount');
+  if(badge){ badge.textContent = pending.length; badge.style.background = pending.length>0?'var(--green)':'rgba(255,255,255,.15)'; badge.style.color = pending.length>0?'#000':'var(--text-dim)'; }
+
+  document.getElementById('rechKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">En attente</div><div class="kpi-val" style="color:var(--green)">${pending.length}</div><div class="kpi-sub">À valider</div></div>
+    <div class="kpi green"><div class="kpi-label">Approuvées</div><div class="kpi-val">${approved.length}</div><div class="kpi-sub">+${fmt(totalApproved)} FCFA crédités</div></div>
+    <div class="kpi red"><div class="kpi-label">Refusées</div><div class="kpi-val">${all.filter(r=>r.status==='refused').length}</div><div class="kpi-sub">Non créditées</div></div>
+    <div class="kpi blue"><div class="kpi-label">Volume total</div><div class="kpi-val">${fmt(totalApproved)}</div><div class="kpi-sub">FCFA entrants</div></div>
+  `;
+
+  let list = all;
+  if(rechFilter==='pending') list=pending;
+  else if(rechFilter==='approved') list=approved;
+  else if(rechFilter==='refused') list=all.filter(r=>r.status==='refused');
+  list = list.sort((a,b)=>b.requestedAt-a.requestedAt);
+
+  document.getElementById('rechListCount').textContent = list.length+' entrée(s)';
+  const METHOD = {orange:'🟠 Orange Money', airtel:'🔴 Airtel Money', especes:'💵 Espèces'};
+  document.getElementById('rechargesTbody').innerHTML = list.map(r=>{
+    const statusHtml = r.status==='pending'
+      ? '<span class="status-badge" style="background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3);">EN ATTENTE</span>'
+      : r.status==='approved'
+        ? '<span class="status-badge active">APPROUVÉ</span>'
+        : '<span class="status-badge banned">REFUSÉ</span>';
+    const actions = r.status==='pending' ? `
+      <button class="action-btn view" onclick="approuverRecharge('${r.id}')">✓ CRÉDITER</button>
+      <button class="action-btn ban" onclick="refuserRecharge('${r.id}')">✗ REFUSER</button>` : '—';
+    return `<tr>
+      <td style="font-size:10px;color:var(--text-dim)">${new Date(r.requestedAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${r.username}</td>
+      <td style="color:var(--green);font-family:'Orbitron',monospace;">+${r.amount.toLocaleString('fr-FR')} FCFA</td>
+      <td style="font-size:10px;">${METHOD[r.methode]||r.methode}</td>
+      <td style="font-size:10px;color:var(--text-dim);">${r.reference||'—'}</td>
+      <td>${statusHtml}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:30px;">Aucune recharge</td></tr>';
+}
+
+function creerRecharge(){
+  const username = document.getElementById('rechJoueur').value;
+  const amount = parseInt(document.getElementById('rechMontant').value)||0;
+  const methode = document.getElementById('rechMethode').value;
+  const reference = document.getElementById('rechRef').value.trim();
+  const msg = document.getElementById('rechMsg');
+  if(!username){ msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Sélectionne un joueur.'; return; }
+  if(amount<500){ msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Minimum 500 FCFA.'; return; }
+  const recharges = getRecharges();
+  recharges.unshift({ id:'RCH-'+Date.now(), username, amount, methode, reference, status:'pending', requestedAt:Date.now() });
+  saveRecharges(recharges);
+  addAdminLog('SYS', `Recharge créée : ${username} — +${amount.toLocaleString('fr-FR')} FCFA (${methode})`);
+  msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='✓ Recharge enregistrée.';
+  document.getElementById('rechMontant').value='';
+  document.getElementById('rechRef').value='';
+  renderRecharges();
+}
+
+function approuverRecharge(id){
+  const recharges = getRecharges();
+  const r = recharges.find(x=>x.id===id);
+  if(!r || r.status!=='pending') return;
+  const users = JSON.parse(localStorage.getItem('poko_users')||'{}');
+  const u = users[r.username];
+  if(!u){ alert('Joueur introuvable.'); return; }
+  const now = Date.now();
+  u.balance = (u.balance||0) + r.amount;
+  u.totalRecharged = (u.totalRecharged||0) + r.amount;
+  // Koni gagnés
+  const koniEarned = Math.floor(r.amount/100)*5;
+  if(koniEarned>0){ u.koniBalance=(u.koniBalance||0)+koniEarned; u.lastKoniActivity=now; }
+  u.transactions = u.transactions||[];
+  u.transactions.unshift({id:now, type:'deposit', amount:r.amount, label:`💳 Recharge ${r.methode}${koniEarned?` (+${koniEarned} Koni)`:''}`, date:now, balance:u.balance});
+  users[r.username]=u; localStorage.setItem('poko_users',JSON.stringify(users));
+  r.status='approved'; r.processedAt=now;
+  saveRecharges(recharges);
+  addAdminLog('SYS', `Recharge APPROUVÉE : ${r.username} — +${r.amount.toLocaleString('fr-FR')} FCFA`);
+  renderRecharges();
+}
+
+function refuserRecharge(id){
+  const recharges = getRecharges();
+  const r = recharges.find(x=>x.id===id);
+  if(!r || r.status!=='pending') return;
+  r.status='refused'; r.processedAt=Date.now();
+  saveRecharges(recharges);
+  addAdminLog('SYS', `Recharge REFUSÉE : ${r.username} — ${r.amount.toLocaleString('fr-FR')} FCFA`);
+  renderRecharges();
+}
+
+function adminLogout(){ sessionStorage.removeItem('poko_admin'); sessionStorage.removeItem('poko_admin_sub'); window.location.href='admin-login.html'; }
+
+// ── INIT ──
+(async()=>{
+  await renderDashboard();
+  loadSettings();
+  // Générer le premier snapshot financier au chargement
+  generateAndSaveFinLog();
+  // Badges sidebar en temps réel
+  const retPending = getRetraits().filter(r=>r.status==='pending').length;
+  const rechPending = getRecharges().filter(r=>r.status==='pending').length;
+  const retB = document.getElementById('retBadgeCount');
+  const rechB = document.getElementById('rechBadgeCount');
+  if(retB){ retB.textContent=retPending; retB.style.background=retPending>0?'var(--amber)':'rgba(255,255,255,.15)'; }
+  if(rechB){ rechB.textContent=rechPending; rechB.style.background=rechPending>0?'var(--green)':'rgba(255,255,255,.15)'; rechB.style.color=rechPending>0?'#000':'var(--text-dim)'; }
+})();
+</script>
+</body>
+</html>

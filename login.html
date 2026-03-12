@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKO — Connexion</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Crimson+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<style>
+:root{--gold:#c9a84c;--gold-light:#e8c76a;--green:#0f3d1f;--white:#f0ead6;--bg:#081c0e;}
+*{margin:0;padding:0;box-sizing:border-box;}html,body{height:100%;}
+body{background:var(--bg);font-family:'Crimson Pro',serif;color:var(--white);display:flex;align-items:stretch;min-height:100vh;overflow-x:hidden;}
+.left-panel{flex:1;display:none;background:linear-gradient(160deg,#0f3d1f 0%,#081c0e 100%);position:relative;overflow:hidden;align-items:center;justify-content:center;flex-direction:column;padding:60px;}
+@media(min-width:860px){.left-panel{display:flex;}}
+.left-pattern{position:absolute;inset:0;background-image:radial-gradient(circle at 20% 50%,rgba(201,168,76,.07) 0%,transparent 50%),repeating-linear-gradient(45deg,transparent,transparent 40px,rgba(201,168,76,.02) 40px,rgba(201,168,76,.02) 41px);}
+.left-suits{font-size:130px;opacity:.06;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);letter-spacing:16px;line-height:1.2;text-align:center;pointer-events:none;}
+.left-content{position:relative;z-index:1;text-align:center;}
+.left-logo{font-family:'Playfair Display',serif;font-size:88px;font-weight:900;color:var(--gold);letter-spacing:16px;text-shadow:0 0 60px rgba(201,168,76,.3);line-height:1;margin-bottom:12px;}
+.left-tagline{font-size:11px;letter-spacing:6px;color:rgba(240,234,214,.4);text-transform:uppercase;}
+.left-deco{width:50px;height:1px;background:var(--gold);margin:18px auto;opacity:.35;}
+.left-quote{font-family:'Playfair Display',serif;font-style:italic;font-size:17px;color:rgba(240,234,214,.4);line-height:1.8;max-width:280px;}
+.right-panel{width:100%;max-width:460px;background:rgba(0,0,0,.55);border-left:1px solid rgba(201,168,76,.1);display:flex;align-items:center;justify-content:center;padding:40px 36px 24px;backdrop-filter:blur(12px);}
+@media(max-width:859px){body{background:radial-gradient(ellipse at center,#1a5c2e 0%,var(--bg) 100%);}.right-panel{max-width:100%;border:none;background:transparent;padding:36px 24px;}}
+.form-wrap{width:100%;max-width:360px;animation:fadeUp .5s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.mobile-logo{font-family:'Playfair Display',serif;font-size:44px;font-weight:900;color:var(--gold);letter-spacing:10px;text-align:center;margin-bottom:30px;display:block;}
+@media(min-width:860px){.mobile-logo{display:none;}}
+.form-title{font-family:'Playfair Display',serif;font-size:26px;color:var(--white);margin-bottom:4px;}
+.form-sub{font-size:11px;letter-spacing:3px;color:rgba(240,234,214,.3);text-transform:uppercase;margin-bottom:30px;}
+.field{margin-bottom:18px;}
+.field label{display:block;font-size:9px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:8px;}
+.field input{width:100%;padding:13px 16px;background:rgba(240,234,214,.05);border:1px solid rgba(240,234,214,.1);border-radius:3px;color:var(--white);font-family:'Crimson Pro',serif;font-size:16px;outline:none;transition:all .2s;}
+.field input:focus{border-color:rgba(201,168,76,.55);background:rgba(201,168,76,.05);box-shadow:0 0 0 3px rgba(201,168,76,.07);}
+.field input::placeholder{color:rgba(240,234,214,.18);}
+.error-box{background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);color:#ff9080;font-size:13px;padding:12px 16px;border-radius:3px;margin-bottom:16px;display:none;}
+.error-box.show{display:block;}
+.btn-submit{width:100%;padding:15px;margin-top:4px;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-light) 100%);color:#1a1200;border:none;border-radius:3px;font-family:'Playfair Display',serif;font-size:15px;font-weight:700;letter-spacing:4px;text-transform:uppercase;cursor:pointer;transition:all .3s;box-shadow:0 4px 24px rgba(201,168,76,.2);}
+.btn-submit:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(201,168,76,.38);}
+.btn-submit:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-inner{display:flex;align-items:center;justify-content:center;gap:10px;}
+.spin{width:14px;height:14px;border:2px solid rgba(26,18,0,.3);border-top-color:#1a1200;border-radius:50%;animation:spin .5s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.divider{display:flex;align-items:center;gap:14px;margin:22px 0;color:rgba(240,234,214,.22);font-size:11px;letter-spacing:2px;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:rgba(240,234,214,.08);}
+.link-row{text-align:center;font-size:14px;color:rgba(240,234,214,.4);}
+.link-row a{color:var(--gold);text-decoration:none;font-weight:600;}
+.link-row a:hover{color:var(--gold-light);}
+.back-home{display:block;text-align:center;margin-top:26px;font-size:10px;letter-spacing:2px;color:rgba(240,234,214,.22);text-decoration:none;text-transform:uppercase;transition:color .2s;}
+.back-home:hover{color:rgba(240,234,214,.5);}
+
+  .field-wrap { position:relative; }
+  .field-wrap input { padding-right:44px; }
+  .eye-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:rgba(240,234,214,.35); cursor:pointer; font-size:18px; padding:4px; transition:color .2s; line-height:1; }
+  .eye-btn:hover { color:rgba(240,234,214,.7); }
+
+  .smart-wrap { display:flex; align-items:stretch; }
+  .smart-prefix { background:rgba(201,168,76,.12); border:1px solid rgba(240,234,214,.1); border-right:none; border-radius:3px 0 0 3px; padding:13px 14px; color:var(--gold); font-family:'Crimson Pro',serif; font-size:16px; white-space:nowrap; flex-shrink:0; display:none; align-items:center; }
+  .smart-wrap.phone-mode .smart-prefix { display:flex; }
+  .smart-wrap.phone-mode input { border-radius:0 3px 3px 0 !important; }
+  .smart-wrap input { flex:1; width:100%; }
+  .field-hint { font-size:11px; color:rgba(240,234,214,.25); margin-top:5px; transition:color .2s; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<div class="left-panel">
+  <div class="left-pattern"></div>
+  <div class="left-suits">&#9824;&#9829;<br>&#9830;&#9827;</div>
+  <div class="left-content">
+    <div class="left-logo">POKO</div>
+    <div class="left-deco"></div>
+    <div class="left-tagline">Jeu de Cartes Congolais</div>
+    <div class="left-deco"></div>
+    <div class="left-quote">La carte la plus haute n'est pas toujours celle qui gagne.</div>
+  </div>
+</div>
+<div class="right-panel">
+  <div class="form-wrap">
+    <div class="mobile-logo">POKO</div>
+    <div class="form-title">Bienvenue</div>
+    <div class="form-sub">Connexion a votre compte</div>
+    <div class="error-box" id="errBox"></div>
+    <div class="field">
+      <label>Identifiant</label>
+      <div class="smart-wrap" id="loginWrap">
+        <span class="smart-prefix">+242</span>
+        <input type="text" id="loginId" placeholder="Pseudo, 06 XXX XX XX ou email…" oninput="onSmartInput()" autocomplete="username tel email" autofocus>
+      </div>
+      <div class="field-hint" id="loginHint">Pseudo, numéro de téléphone ou adresse email</div>
+    </div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <div class="field-wrap"><input type="password" id="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password"><button type="button" class="eye-btn" onclick="togglePwd('password',this)">&#128065;</button></div>
+    </div>
+    <button class="btn-submit" id="loginBtn">
+      <div class="btn-inner"><span id="btnTxt">Se connecter</span><div class="spin" id="spin"></div></div>
+    </button>
+    <div style="text-align:center;margin-top:12px;">
+      <button type="button" onclick="showForgot()" style="background:none;border:none;color:rgba(240,234,214,.3);font-family:'Crimson Pro',serif;font-size:13px;cursor:pointer;letter-spacing:1px;transition:color .2s;" onmouseover="this.style.color='rgba(240,234,214,.6)'" onmouseout="this.style.color='rgba(240,234,214,.3)'">Mot de passe oublié ?</button>
+    </div>
+    <div class="divider">OU</div>
+    <div class="link-row">Pas de compte ? <a href="register.html">Creer un compte</a></div>
+    <a class="back-home" href="index.html">Retour a l'accueil</a>
+  </div>
+</div>
+<script>
+function onSmartInput() {
+  const el   = document.getElementById('loginId');
+  const wrap = document.getElementById('loginWrap');
+  const hint = document.getElementById('loginHint');
+  const raw  = el.value;
+  if (raw.length > 0 && /^[0-9]/.test(raw) && !raw.includes('@')) {
+    wrap.classList.add('phone-mode');
+    let digits = raw.replace(/\D/g, '').slice(0, 9);
+    let f = digits;
+    if (f.length > 2) f = f.slice(0,2) + ' ' + f.slice(2);
+    if (f.length > 5) f = f.slice(0,5) + ' ' + f.slice(5);
+    if (f.length > 8) f = f.slice(0,8) + ' ' + f.slice(8);
+    el.value = f;
+    hint.textContent = '📱 +242 · Congo Republic';
+    hint.style.color = 'rgba(201,168,76,.55)';
+  } else {
+    wrap.classList.remove('phone-mode');
+    if (raw.includes('@')) {
+      hint.textContent = '✉️ Email détecté';
+      hint.style.color = 'rgba(201,168,76,.55)';
+    } else {
+      hint.textContent = 'Pseudo, numéro de téléphone ou adresse email';
+      hint.style.color = 'rgba(240,234,214,.25)';
+    }
+  }
+}
+function getLoginIdentifier() {
+  const raw    = document.getElementById('loginId').value.trim();
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 6 && !raw.includes('@')) return '+242' + digits;
+  return raw;
+}
+</script>
+<script src="login.js"></script>
+
+<!-- Modal mot de passe oublié -->
+<div id="forgotModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:#0c2414;border:1px solid rgba(201,168,76,.25);padding:32px 36px;width:100%;max-width:380px;border-radius:4px;animation:fadeUp .3s ease;position:relative;">
+    <button onclick="hideForgot()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:rgba(240,234,214,.3);font-size:20px;cursor:pointer;line-height:1;" onmouseover="this.style.color='rgba(240,234,214,.7)'" onmouseout="this.style.color='rgba(240,234,214,.3)'">×</button>
+    <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--white);margin-bottom:6px;">Mot de passe oublié</div>
+    <div style="font-size:11px;letter-spacing:2px;color:rgba(240,234,214,.3);text-transform:uppercase;margin-bottom:22px;">Réinitialiser votre accès</div>
+
+    <!-- Étape 1 : trouver le compte -->
+    <div id="forgotStep1">
+      <div class="field" style="margin-bottom:16px;">
+        <label>Pseudo, téléphone ou email</label>
+        <input type="text" id="forgotId" placeholder="votre_pseudo ou +242..." style="width:100%;padding:12px 14px;background:rgba(240,234,214,.05);border:1px solid rgba(240,234,214,.1);border-radius:3px;color:var(--white);font-family:'Crimson Pro',serif;font-size:15px;outline:none;transition:all .2s;" onfocus="this.style.borderColor='rgba(201,168,76,.55)'" onblur="this.style.borderColor='rgba(240,234,214,.1)'">
+      </div>
+      <div id="forgotErr1" style="color:#ff9080;font-size:13px;margin-bottom:12px;display:none;"></div>
+      <button onclick="forgotFind()" style="width:100%;padding:13px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a1200;border:none;border-radius:3px;font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:3px;cursor:pointer;text-transform:uppercase;">CONTINUER</button>
+    </div>
+
+    <!-- Étape 2 : nouveau mot de passe -->
+    <div id="forgotStep2" style="display:none;">
+      <div id="forgotFoundUser" style="background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);border-radius:3px;padding:10px 14px;font-size:14px;color:rgba(240,234,214,.7);margin-bottom:18px;"></div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Nouveau mot de passe</label>
+        <div style="position:relative;">
+          <input type="password" id="forgotPwd1" placeholder="••••••••" style="width:100%;padding:12px 44px 12px 14px;background:rgba(240,234,214,.05);border:1px solid rgba(240,234,214,.1);border-radius:3px;color:var(--white);font-family:'Crimson Pro',serif;font-size:15px;outline:none;transition:all .2s;" onfocus="this.style.borderColor='rgba(201,168,76,.55)'" onblur="this.style.borderColor='rgba(240,234,214,.1)'">
+          <button type="button" class="eye-btn" onclick="togglePwd('forgotPwd1',this)">👁</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px;">
+        <label>Confirmer</label>
+        <input type="password" id="forgotPwd2" placeholder="••••••••" style="width:100%;padding:12px 14px;background:rgba(240,234,214,.05);border:1px solid rgba(240,234,214,.1);border-radius:3px;color:var(--white);font-family:'Crimson Pro',serif;font-size:15px;outline:none;transition:all .2s;" onfocus="this.style.borderColor='rgba(201,168,76,.55)'" onblur="this.style.borderColor='rgba(240,234,214,.1)'">
+      </div>
+      <div id="forgotErr2" style="color:#ff9080;font-size:13px;margin-bottom:12px;display:none;"></div>
+      <div id="forgotOk" style="color:#4ade80;font-size:13px;margin-bottom:12px;display:none;"></div>
+      <button onclick="forgotReset()" style="width:100%;padding:13px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a1200;border:none;border-radius:3px;font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:3px;cursor:pointer;text-transform:uppercase;">RÉINITIALISER</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let forgotUsername = null;
+
+function showForgot() {
+  document.getElementById('forgotModal').style.display = 'flex';
+  document.getElementById('forgotStep1').style.display = 'block';
+  document.getElementById('forgotStep2').style.display = 'none';
+  document.getElementById('forgotId').value = '';
+  document.getElementById('forgotErr1').style.display = 'none';
+  setTimeout(()=>document.getElementById('forgotId').focus(), 100);
+}
+function hideForgot() {
+  document.getElementById('forgotModal').style.display = 'none';
+}
+function forgotFind() {
+  const id = document.getElementById('forgotId').value.trim();
+  const err = document.getElementById('forgotErr1');
+  err.style.display = 'none';
+  if(!id) { err.textContent = 'Entrez votre pseudo, téléphone ou email.'; err.style.display = 'block'; return; }
+  const users = POKO_DB.getUsers();
+  const norm = id.replace(/\s/g,'');
+  let found = users[id] || Object.values(users).find(u =>
+    (u.email||'').replace(/\s/g,'') === norm ||
+    u.username === id
+  );
+  if(!found) { err.textContent = 'Aucun compte trouvé avec cet identifiant.'; err.style.display = 'block'; return; }
+  forgotUsername = found.username;
+  const contact = found.email ? (found.email.startsWith('+242') ? '📱 ' : '✉️ ') + found.email : found.username;
+  document.getElementById('forgotFoundUser').innerHTML = `Compte trouvé : <strong style="color:var(--gold)">${found.avatar||'🃏'} ${found.username}</strong> — ${contact}`;
+  document.getElementById('forgotStep1').style.display = 'none';
+  document.getElementById('forgotStep2').style.display = 'block';
+  document.getElementById('forgotPwd1').value = '';
+  document.getElementById('forgotPwd2').value = '';
+  document.getElementById('forgotErr2').style.display = 'none';
+  document.getElementById('forgotOk').style.display = 'none';
+}
+function forgotReset() {
+  const p1 = document.getElementById('forgotPwd1').value;
+  const p2 = document.getElementById('forgotPwd2').value;
+  const err = document.getElementById('forgotErr2');
+  const ok  = document.getElementById('forgotOk');
+  err.style.display = 'none'; ok.style.display = 'none';
+  if(p1.length < 4) { err.textContent = 'Mot de passe trop court (4 car. min).'; err.style.display = 'block'; return; }
+  if(p1 !== p2) { err.textContent = 'Les mots de passe ne correspondent pas.'; err.style.display = 'block'; return; }
+  const users = POKO_DB.getUsers();
+  if(!users[forgotUsername]) { err.textContent = 'Erreur : compte introuvable.'; err.style.display = 'block'; return; }
+  users[forgotUsername].password = btoa(unescape(encodeURIComponent(p1)));
+  POKO_DB.saveUsers(users);
+  ok.textContent = '✅ Mot de passe réinitialisé ! Vous pouvez vous connecter.';
+  ok.style.display = 'block';
+  // Pré-remplir le champ pseudo
+  document.getElementById('username').value = forgotUsername;
+  setTimeout(hideForgot, 2000);
+}
+</script>
+
+</body>
+</html>
