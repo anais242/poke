@@ -1370,7 +1370,7 @@ if(!sessionStorage.getItem('poko_admin')){ window.location.href='admin-login.htm
 
 // ── Supabase client (même config que auth.js) ──
 const SUPABASE_URL_ADMIN = 'https://agghgyidejzlxidrjswv.supabase.co';
-const SUPABASE_KEY_ADMIN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZ2hneWlkZWp6bHhpZHJqc3d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNzQ3MjcsImV4cCI6MjA4Nzg1MDcyN30.tS050ZrnbmwLWo4sWbt85fyy_em3g7_BjL7PF5acIhg';
+const SUPABASE_KEY_ADMIN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZ2hneWlkZWp6bHhpZHJqc3d2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI3NDcyNywiZXhwIjoyMDg3ODUwNzI3fQ.n6aN_FwJqWUKAPJzFI4x-hZnlJil-6mEc4GoWJbfV0A';
 const SB = {
   headers: { 'Content-Type':'application/json','apikey':SUPABASE_KEY_ADMIN,'Authorization':'Bearer '+SUPABASE_KEY_ADMIN,'Prefer':'return=representation' },
   async get(table,filters){ try{ const r=await fetch(`${SUPABASE_URL_ADMIN}/rest/v1/${table}?${filters||''}`,{headers:this.headers}); return r.ok?r.json():[];}catch(e){return[];} },
@@ -1411,13 +1411,29 @@ function showPanel(name,el){
 }
 
 // ── DATA ──
-function getUsers(){
-  // Sync fallback (localStorage) pour compatibilité interne
-  try{return Object.values(JSON.parse(localStorage.getItem('poko_users')||'{}'));}catch(e){return [];}
-}
+function getUsers(){ return _adminUsersCache; }
+let _adminUsersCache = [];
 async function getUsersAsync(){
-  // Phase 1 : localStorage uniquement
-  return getUsers();
+  const rows = await SB.get('profiles','select=*');
+  if(!Array.isArray(rows)) return _adminUsersCache;
+  _adminUsersCache = rows.map(r=>({
+    id:               r.id,
+    username:         r.username,
+    email:            r.email,
+    avatar:           r.avatar            || '🃏',
+    balance:          r.balance           || 0,
+    totalGames:       r.total_games       || 0,
+    totalWins:        r.total_wins        || 0,
+    totalEarned:      r.total_earned      || 0,
+    totalLost:        r.total_lost        || 0,
+    longestWinStreak: r.longest_win_streak|| 0,
+    trustScore:       r.trust_score       || 0,
+    vip:              r.vip               || false,
+    banned:           r.banned            || false,
+    createdAt:        r.created_at        || new Date().toISOString(),
+    level:            r.level             || 'moke',
+  }));
+  return _adminUsersCache;
 }
 function getAdminSettings(){ try{return JSON.parse(localStorage.getItem('poko_admin_settings')||'{}');}catch(e){return {};} }
 function saveAdminSettings(s){ localStorage.setItem('poko_admin_settings',JSON.stringify(s)); }
@@ -1542,22 +1558,16 @@ async function renderPlayers(){
 }
 
 async function toggleBan(username,ban){
-  await SB.update('poko_users',{banned:ban},`username=eq.${encodeURIComponent(username)}`);
-  const users=JSON.parse(localStorage.getItem('poko_users')||'{}');
-  if(users[username]){ users[username].banned=ban; localStorage.setItem('poko_users',JSON.stringify(users)); }
+  await SB.update('profiles',{banned:ban},`username=eq.${encodeURIComponent(username)}`);
   addAdminLog('SYS',`${ban?'Bannissement':'Débannissement'} de ${username}`);
   renderPlayers();
 }
 async function toggleVIP(username){
-  const users=JSON.parse(localStorage.getItem('poko_users')||'{}');
-  const u=users[username]; if(!u) return;
-  const newVip=!(u.vip||false);
-  u.vip=newVip;
-  // VIP ON → trustScore 100 = toutes les tables débloquées
-  // VIP OFF → recalcul normal via POKO_DB
-  u.trustScore = newVip ? 100 : (typeof POKO_DB!=='undefined' ? POKO_DB.calculateTrustScore(u) : u.trustScore);
-  await SB.update('poko_users',{vip:newVip,trustScore:u.trustScore},`username=eq.${encodeURIComponent(username)}`);
-  localStorage.setItem('poko_users',JSON.stringify(users));
+  const users=await getUsersAsync();
+  const u=users.find(x=>x.username===username); if(!u) return;
+  const newVip=!u.vip;
+  const newTrust=newVip?100:u.trustScore;
+  await SB.update('profiles',{vip:newVip,trust_score:newTrust},`username=eq.${encodeURIComponent(username)}`);
   addAdminLog('SYS',`${newVip?'✨ VIP activé (toutes tables débloquées)':'VIP retiré'} pour ${username}`);
   renderPlayers();
 }
@@ -1565,17 +1575,21 @@ async function toggleVIP(username){
 async function resetPin(username){
   const newPin = prompt(`Nouveau mot de passe pour ${username} :`);
   if(!newPin || newPin.length < 4){ alert('Mot de passe trop court (4 car. min).'); return; }
-  const hash = btoa(unescape(encodeURIComponent(newPin)));
-  // Mettre à jour le localStorage
-  const users = JSON.parse(localStorage.getItem('poko_users')||'{}');
-  if(users[username]){ users[username].password=hash; localStorage.setItem('poko_users',JSON.stringify(users)); }
-  SB.update('poko_users', {password_hash: hash}, `username=eq.${encodeURIComponent(username)}`).catch(()=>{});
-  alert(`Mot de passe de ${username} réinitialisé avec succès.`);
-  addAdminLog('SYS',`Reset PIN pour ${username}`);
+  const users = await getUsersAsync();
+  const u = users.find(x=>x.username===username);
+  if(!u){ alert('Utilisateur introuvable.'); return; }
+  try{
+    const r = await fetch(`${SUPABASE_URL_ADMIN}/auth/v1/admin/users/${u.id}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY_ADMIN,'Authorization':'Bearer '+SUPABASE_KEY_ADMIN},
+      body:JSON.stringify({password:newPin})
+    });
+    if(r.ok){ alert(`Mot de passe de ${username} réinitialisé avec succès.`); addAdminLog('SYS',`Reset PIN pour ${username}`); }
+    else{ alert('Erreur lors de la réinitialisation.'); }
+  }catch(e){ alert('Erreur réseau.'); }
 }
 function viewPlayer(username){
-  const users=JSON.parse(localStorage.getItem('poko_users')||'{}');
-  const u=users[username]; if(!u) return;
+  const u=_adminUsersCache.find(x=>x.username===username); if(!u) return;
   document.getElementById('modalTitle').textContent=`${u.avatar||'🃏'} ${u.username.toUpperCase()}`;
   const wr=u.totalGames>0?Math.round(u.totalWins/u.totalGames*100):0;
   document.getElementById('modalContent').innerHTML=`
