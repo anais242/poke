@@ -573,24 +573,8 @@ const AI_NAMES_FALLBACK = [
 
 // Pioche 3 joueurs inscrits au hasard (hors joueur humain)
 function pickAIPlayers(excludeUsername) {
-  let accounts = [];
-  try {
-    const users = JSON.parse(localStorage.getItem('poko_users') || '{}');
-    accounts = Object.values(users);
-  } catch(e) {}
-  const pool = accounts
-    .filter(u => u.username !== excludeUsername)
-    .sort(() => Math.random() - 0.5);
-  const shuffledFallback = [...AI_NAMES_FALLBACK].sort(() => Math.random() - 0.5);
-  const picked = [];
-  for (let i = 0; i < 3; i++) {
-    if (pool[i]) {
-      picked.push({ username: pool[i].username, avatar: pool[i].avatar || '🃏' });
-    } else {
-      picked.push({ ...shuffledFallback[picked.length % shuffledFallback.length] });
-    }
-  }
-  return picked;
+  const shuffled = [...AI_NAMES_FALLBACK].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
 }
 
 let PNAMES   = { A:'VOUS',  B:'...',  C:'...',  D:'...'  };
