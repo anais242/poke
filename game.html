@@ -579,9 +579,10 @@ let G = {};
 function newG() {
   return {
     options: {
-      sabot: storedOpts.sabot || 'remis',
-      kin:   storedOpts.kin   || 'actif',
-      mise:  storedOpts.mise  || 100
+      sabot: storedOpts.sabot  || 'remis',
+      kin:   storedOpts.kin    || 'actif',
+      mise:  storedOpts.mise   || 100,
+      table: storedOpts.table  || 'leki',
     },
     sabot: [],
     hands: {A:[],B:[],C:[],D:[]},
@@ -1483,7 +1484,7 @@ function checkStageEnd(){
 function showGameOver(){
   // Record game result
   const _u=POKO_DB.currentUser();
-  if(_u) POKO_DB.recordGame({mise:G.options.mise,result:'gameover',stage:G.currentStage}).catch(()=>{});
+  if(_u) POKO_DB.recordGame({mise:G.options.mise,result:'gameover',stage:G.currentStage,table:G.options.table}).catch(()=>{});
   const box=document.getElementById('endModalBox');
   box.className='modal gameover';
   document.getElementById('endTitle').textContent='💀 GAME OVER';
@@ -1520,7 +1521,7 @@ function launchConfetti(){
 function endGame(winner){
   G.phase='ended';
   const _u=POKO_DB.currentUser();
-  if(_u) POKO_DB.recordGame({mise:G.options.mise,result:winner==='A'?'win':'lose',stage:G.currentStage}).catch(()=>{});
+  if(_u) POKO_DB.recordGame({mise:G.options.mise,result:winner==='A'?'win':'lose',stage:G.currentStage,table:G.options.table}).catch(()=>{});
   setTimeout(()=>{
     if(winner==='A') launchConfetti();
     const box=document.getElementById('endModalBox');
