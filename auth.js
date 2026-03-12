@@ -1,135 +1,117 @@
 // ═══════════════════════════════════════════
-//  POKO — auth.js  (Phase 1 — localStorage)
+//  POKO — auth.js  (Phase 2 — Supabase)
 //  Niveaux · Trust Score · Koni · RTP dynamique
 // ═══════════════════════════════════════════
 
 // ── CONFIG ─────────────────────────────────
 const POKO_CONFIG = {
-  // Mises par table
   tables: [
     { id:'leki',    name:'Leki',    mise:100,  trustMin:0,  icon:'🟢' },
     { id:'yaya',    name:'Yaya',    mise:500,  trustMin:30, icon:'🔵' },
     { id:'mokolo',  name:'Mokolo',  mise:1000, trustMin:60, icon:'🟡' },
     { id:'mokonzi', name:'Mokonzi', mise:2500, trustMin:85, icon:'🔴' },
   ],
-  // Niveaux
   levels: {
-    moke:   { name:'Moké',   icon:'🪵', label:'Débutant',   rtp:65, color:'#8B6914' },
-    monene: { name:'Monéné', icon:'🔥', label:'Régulier',   rtp:null, color:'#E85D04' },
-    koni:   { name:'Koni',   icon:'🌟', label:'Confirmé',   rtp:null, color:'#6A0DAD' },
-    makala: { name:'Makala', icon:'👑', label:'Élite',      rtp:18, color:'#d4a017' },
+    moke:   { name:'Moké',   icon:'🪵', label:'Débutant', rtp:65,   color:'#8B6914' },
+    monene: { name:'Monéné', icon:'🔥', label:'Régulier', rtp:null, color:'#E85D04' },
+    koni:   { name:'Koni',   icon:'🌟', label:'Confirmé', rtp:null, color:'#6A0DAD' },
+    makala: { name:'Makala', icon:'👑', label:'Élite',    rtp:18,   color:'#d4a017' },
   },
   levelThresholds: {
-    moke_days: 15,       // 15 premiers jours
-    monene:    5000,     // > 5 000 FCFA rechargés
-    koni:      15000,    // > 15 000 FCFA rechargés
-    makala:    30000,    // > 30 000 FCFA rechargés
+    moke_days: 15,
+    monene:    5000,
+    koni:      15000,
+    makala:    30000,
   },
-  // Koni
   koni: {
-    perHundredFcfa: 5,   // 5 Koni par 100 FCFA rechargés
-    rate: 0.5,           // 1 Koni = 0.5 FCFA
-    expiryDays: 30,
-    minConvert: 500,     // 500 Koni minimum pour convertir
+    perHundredFcfa: 5,
+    rate:           0.5,
+    expiryDays:     30,
+    minConvert:     500,
   },
-  // Bonus
   welcomeBonus: 200,
-  dailyBonus: 50, // en Koni
+  dailyBonus:   50,
 };
 
-// ── Surcharge admin depuis localStorage ────────
-(()=>{
-  try{
-    const k=JSON.parse(localStorage.getItem('poko_koni_config')||'null');
-    if(k){
-      if(k.perHundredFcfa!=null) POKO_CONFIG.koni.perHundredFcfa = k.perHundredFcfa;
-      if(k.rate         !=null) POKO_CONFIG.koni.rate            = k.rate;
-      if(k.expiryDays   !=null) POKO_CONFIG.koni.expiryDays      = k.expiryDays;
-      if(k.minConvert   !=null) POKO_CONFIG.koni.minConvert       = k.minConvert;
-      if(k.dailyBonus   !=null) POKO_CONFIG.dailyBonus            = k.dailyBonus;
-      if(k.welcomeBonus !=null) POKO_CONFIG.welcomeBonus          = k.welcomeBonus;
-    }
-  }catch(e){}
-  try{
-    const s=JSON.parse(localStorage.getItem('poko_admin_settings')||'null');
-    if(s){
-      if(s.rtpMoke     !=null) POKO_CONFIG.levels.moke.rtp            = s.rtpMoke;
-      if(s.rtpMakala   !=null) POKO_CONFIG.levels.makala.rtp          = s.rtpMakala;
-      if(s.mokeJours   !=null) POKO_CONFIG.levelThresholds.moke_days  = s.mokeJours;
-      if(s.seuilMonene !=null) POKO_CONFIG.levelThresholds.monene     = s.seuilMonene;
-      if(s.seuilKoni   !=null) POKO_CONFIG.levelThresholds.koni       = s.seuilKoni;
-      if(s.seuilMakala !=null) POKO_CONFIG.levelThresholds.makala     = s.seuilMakala;
-      if(s.welcomeBonus!=null) POKO_CONFIG.welcomeBonus               = s.welcomeBonus;
-      if(s.dailyBonus  !=null) POKO_CONFIG.dailyBonus                 = s.dailyBonus;
-    }
-  }catch(e){}
-})();
+// ── Cache profil courant ───────────────────
+let _profile = null;
+
+// ── Conversion DB (snake_case) → UserObject (camelCase) ──
+function _toUser(row) {
+  return {
+    id:                row.id,
+    email:             row.email,
+    username:          row.username,
+    avatar:            row.avatar            || '🃏',
+    balance:           row.balance           || 0,
+    koniBalance:       row.koni_balance      || 0,
+    totalRecharged:    row.total_recharged   || 0,
+    totalEarned:       row.total_earned      || 0,
+    totalLost:         row.total_lost        || 0,
+    totalGames:        row.total_games       || 0,
+    totalWins:         row.total_wins        || 0,
+    currentStreak:     row.current_streak    || 0,
+    longestWinStreak:  row.longest_win_streak|| 0,
+    level:             row.level             || 'moke',
+    trustScore:        row.trust_score       || 0,
+    mokeStart:         row.moke_start        ? new Date(row.moke_start).getTime() : Date.now(),
+    lastKoniActivity:  row.last_koni_activity? new Date(row.last_koni_activity).getTime() : null,
+    lastDailyBonus:    row.last_daily_bonus  ? new Date(row.last_daily_bonus).getTime() : null,
+    vip:               row.vip               || false,
+    banned:            row.banned            || false,
+    banReason:         row.ban_reason        || '',
+    createdAt:         row.created_at        ? new Date(row.created_at).getTime() : Date.now(),
+    transactions:      [],
+    history:           [],
+  };
+}
+
+// ── Conversion UserObject → DB fields ──────
+function _toDb(user) {
+  const d = {};
+  if (user.email             !== undefined) d.email              = user.email;
+  if (user.username          !== undefined) d.username           = user.username;
+  if (user.avatar            !== undefined) d.avatar             = user.avatar;
+  if (user.balance           !== undefined) d.balance            = user.balance;
+  if (user.koniBalance       !== undefined) d.koni_balance       = user.koniBalance;
+  if (user.totalRecharged    !== undefined) d.total_recharged    = user.totalRecharged;
+  if (user.totalEarned       !== undefined) d.total_earned       = user.totalEarned;
+  if (user.totalLost         !== undefined) d.total_lost         = user.totalLost;
+  if (user.totalGames        !== undefined) d.total_games        = user.totalGames;
+  if (user.totalWins         !== undefined) d.total_wins         = user.totalWins;
+  if (user.currentStreak     !== undefined) d.current_streak     = user.currentStreak;
+  if (user.longestWinStreak  !== undefined) d.longest_win_streak = user.longestWinStreak;
+  if (user.level             !== undefined) d.level              = user.level;
+  if (user.trustScore        !== undefined) d.trust_score        = user.trustScore;
+  if (user.mokeStart         !== undefined) d.moke_start         = new Date(user.mokeStart).toISOString();
+  if (user.lastKoniActivity  !== undefined) d.last_koni_activity = user.lastKoniActivity ? new Date(user.lastKoniActivity).toISOString() : null;
+  if (user.lastDailyBonus    !== undefined) d.last_daily_bonus   = user.lastDailyBonus   ? new Date(user.lastDailyBonus).toISOString()   : null;
+  if (user.vip               !== undefined) d.vip                = user.vip;
+  if (user.banned            !== undefined) d.banned             = user.banned;
+  if (user.banReason         !== undefined) d.ban_reason         = user.banReason;
+  return d;
+}
+
+// ── Cache localStorage (compat admin.html) ─
+function _cacheUserLocally(user) {
+  try {
+    const users = JSON.parse(localStorage.getItem('poko_users') || '{}');
+    users[user.username] = user;
+    localStorage.setItem('poko_users', JSON.stringify(users));
+  } catch(e) {}
+}
 
 // ══════════════════════════════════════════════════
 //  POKO_DB
 // ══════════════════════════════════════════════════
 const POKO_DB = {
 
-  // ── Persistance ─────────────────────────
-  getUsers()   { try { return JSON.parse(localStorage.getItem('poko_users') || '{}'); } catch(e) { return {}; } },
-  saveUsers(u) { localStorage.setItem('poko_users', JSON.stringify(u)); },
-  getSession() { try { return JSON.parse(sessionStorage.getItem('poko_session') || 'null'); } catch(e) { return null; } },
-  setSession(u){ sessionStorage.setItem('poko_session', JSON.stringify({ ...u, lastActivity: Date.now() })); },
-  clearSession(){ sessionStorage.removeItem('poko_session'); },
+  // ── Logique pure (inchangée) ─────────────
 
-  _getSessionTimeout() {
-    try {
-      const s = JSON.parse(localStorage.getItem('poko_admin_settings') || '{}');
-      return (s.sessionTimeout || 5) * 60 * 1000; // minutes → ms
-    } catch(e) { return 5 * 60 * 1000; }
-  },
-
-  refreshSession() {
-    const s = this.getSession();
-    if (s) sessionStorage.setItem('poko_session', JSON.stringify({ ...s, lastActivity: Date.now() }));
-  },
-
-  currentUser() {
-    const s = this.getSession();
-    if (!s) return null;
-    // Vérification timeout d'inactivité
-    const timeout = this._getSessionTimeout();
-    if (s.lastActivity && (Date.now() - s.lastActivity) > timeout) {
-      this.clearSession();
-      const page = window.location.pathname.split('/').pop();
-      const authPages = ['index.html','login.html','register.html','admin-login.html',''];
-      if (!authPages.includes(page)) window.location.href = 'index.html';
-      return null;
-    }
-    const u = this.getUsers()[s.username] || null;
-    if (!u) return null;
-    return this._withFreshData(u);
-  },
-  async currentUserAsync() { return this.currentUser(); },
-
-  // Recalcule level, trust score, expiry Koni à chaque lecture
-  _withFreshData(user) {
-    user.level      = this.calculateLevel(user);
-    user.trustScore = this.calculateTrustScore(user);
-    user = this._checkKoniExpiry(user);
-    return user;
-  },
-
-  saveUser(user) {
-    const users = this.getUsers();
-    // Recalculer avant de sauvegarder
-    user.level      = this.calculateLevel(user);
-    user.trustScore = this.calculateTrustScore(user);
-    this.updatePlayerRTP(user);
-    users[user.username] = user;
-    this.saveUsers(users);
-  },
-
-  // ── Calcul Niveau ────────────────────────
   calculateLevel(user) {
-    const tr = user.totalRecharged || 0;
-    const mokeStart  = user.mokeStart || user.createdAt || Date.now();
-    const daysSince  = (Date.now() - mokeStart) / 86400000;
+    const tr        = user.totalRecharged || 0;
+    const mokeStart = user.mokeStart || user.createdAt || Date.now();
+    const daysSince = (Date.now() - mokeStart) / 86400000;
     if (daysSince < POKO_CONFIG.levelThresholds.moke_days && tr < POKO_CONFIG.levelThresholds.monene) return 'moke';
     if (tr >= POKO_CONFIG.levelThresholds.makala) return 'makala';
     if (tr >= POKO_CONFIG.levelThresholds.koni)   return 'koni';
@@ -140,51 +122,32 @@ const POKO_DB = {
     return POKO_CONFIG.levels[level] || POKO_CONFIG.levels.moke;
   },
 
-  // Progression vers le prochain niveau
   getLevelProgress(user) {
     const tr  = user.totalRecharged || 0;
     const lvl = user.level || 'moke';
     const t   = POKO_CONFIG.levelThresholds;
-    let current = 0, target = 0, nextLevel = null;
     if (lvl === 'moke') {
-      const days = (Date.now() - (user.mokeStart || user.createdAt)) / 86400000;
-      // Moké sort soit après 15j soit après 5000 FCFA rechargés
+      const days    = (Date.now() - (user.mokeStart || user.createdAt)) / 86400000;
       const pctDays = Math.min(100, (days / t.moke_days) * 100);
       const pctFcfa = Math.min(100, (tr / t.monene) * 100);
-      return { pct: Math.max(pctDays, pctFcfa), label: `${tr.toLocaleString('fr-FR')} / ${t.monene.toLocaleString('fr-FR')} FCFA rechargés`, nextLevel:'monene' };
+      return { pct: Math.max(pctDays, pctFcfa), label:`${tr.toLocaleString('fr-FR')} / ${t.monene.toLocaleString('fr-FR')} FCFA rechargés`, nextLevel:'monene' };
     }
-    if (lvl === 'monene') { current = tr - t.monene; target = t.koni - t.monene; nextLevel = 'koni'; }
-    if (lvl === 'koni')   { current = tr - t.koni;   target = t.makala - t.koni; nextLevel = 'makala'; }
-    if (lvl === 'makala') return { pct: 100, label: 'Niveau maximum', nextLevel: null };
-    const pct = Math.min(100, Math.floor((current / target) * 100));
-    return { pct, label: `${tr.toLocaleString('fr-FR')} / ${(lvl==='monene'?t.koni:t.makala).toLocaleString('fr-FR')} FCFA`, nextLevel };
+    if (lvl === 'monene') { return { pct: Math.min(100,Math.floor(((tr-t.monene)/(t.koni-t.monene))*100)),   label:`${tr.toLocaleString('fr-FR')} / ${t.koni.toLocaleString('fr-FR')} FCFA`,   nextLevel:'koni'   }; }
+    if (lvl === 'koni')   { return { pct: Math.min(100,Math.floor(((tr-t.koni)/(t.makala-t.koni))*100)),     label:`${tr.toLocaleString('fr-FR')} / ${t.makala.toLocaleString('fr-FR')} FCFA`, nextLevel:'makala' }; }
+    return { pct:100, label:'Niveau maximum', nextLevel:null };
   },
 
-  // ── Trust Score ──────────────────────────
   calculateTrustScore(user) {
-    if(user.vip) return 100; // VIP = toutes les tables débloquées
-    const scores = { totalRecharged:0, frequency:0, seniority:0, behavior:0 };
-    const tr = user.totalRecharged || 0;
-    // 40% — Total rechargé
-    if      (tr >= 30000) scores.totalRecharged = 40;
-    else if (tr >= 10000) scores.totalRecharged = 25;
-    else if (tr >= 5000)  scores.totalRecharged = 15;
-    else scores.totalRecharged = Math.floor((tr / 5000) * 15);
-    // 25% — Fréquence parties/semaine
+    if (user.vip) return 100;
+    const tr         = user.totalRecharged || 0;
     const daysActive = Math.max(1, (Date.now() - (user.createdAt || Date.now())) / 86400000);
-    const gpw = (user.totalGames || 0) / (daysActive / 7);
-    if      (gpw >= 20) scores.frequency = 25;
-    else if (gpw >= 10) scores.frequency = 18;
-    else if (gpw >= 5)  scores.frequency = 12;
-    else scores.frequency = Math.floor(Math.min(gpw, 5) / 5 * 12);
-    // 20% — Ancienneté
-    if      (daysActive >= 90) scores.seniority = 20;
-    else if (daysActive >= 30) scores.seniority = 14;
-    else if (daysActive >= 15) scores.seniority = 8;
-    else scores.seniority = Math.floor((daysActive / 15) * 8);
-    // 15% — Comportement
-    scores.behavior = user.banned ? 0 : 15;
-    return Math.min(100, scores.totalRecharged + scores.frequency + scores.seniority + scores.behavior);
+    const gpw        = (user.totalGames || 0) / (daysActive / 7);
+    let s = { r:0, f:0, a:0, b:0 };
+    s.r = tr >= 30000 ? 40 : tr >= 10000 ? 25 : tr >= 5000 ? 15 : Math.floor((tr/5000)*15);
+    s.f = gpw >= 20 ? 25 : gpw >= 10 ? 18 : gpw >= 5 ? 12 : Math.floor(Math.min(gpw,5)/5*12);
+    s.a = daysActive >= 90 ? 20 : daysActive >= 30 ? 14 : daysActive >= 15 ? 8 : Math.floor((daysActive/15)*8);
+    s.b = user.banned ? 0 : 15;
+    return Math.min(100, s.r + s.f + s.a + s.b);
   },
 
   getAccessibleTables(user) {
@@ -192,140 +155,215 @@ const POKO_DB = {
     return POKO_CONFIG.tables.map(t => ({ ...t, accessible: score >= t.trustMin }));
   },
 
-  // ── RTP dynamique ────────────────────────
   getRTP(user) {
     const level = user.level || 'moke';
-    if (level === 'moke')   return 65;
-    if (level === 'makala') return 18;
-    // Monéné / Koni : dynamique 15-35 selon winRate
-    const winRate = (user.totalGames || 0) > 0
-      ? (user.totalWins || 0) / user.totalGames
-      : 0.4;
+    if (level === 'moke')   return POKO_CONFIG.levels.moke.rtp   || 65;
+    if (level === 'makala') return POKO_CONFIG.levels.makala.rtp || 18;
+    const winRate = (user.totalGames || 0) > 0 ? (user.totalWins || 0) / user.totalGames : 0.4;
     if (winRate > 0.60) return 15;
     if (winRate < 0.20) return 35;
     return Math.round(35 - ((winRate - 0.2) / 0.4) * 20);
   },
 
   updatePlayerRTP(user) {
-    // Si l'admin a un override manuel actif, ne pas écraser
-    const overrides = JSON.parse(localStorage.getItem('poko_rtp_override') || '{}');
-    if (overrides[user.username]) return;
-    const rtp = this.getRTP(user);
-    const settings = JSON.parse(localStorage.getItem('poko_rtp') || '{}');
-    settings[user.username] = rtp;
-    localStorage.setItem('poko_rtp', JSON.stringify(settings));
+    (async () => {
+      try {
+        const { data: row } = await _supabase.from('rtp_settings').select('is_override').eq('player_id', user.id).single();
+        if (row && row.is_override) return;
+        const rtp = this.getRTP(user);
+        await _supabase.from('rtp_settings').upsert({ player_id: user.id, rtp_value: rtp, is_override: false, updated_at: new Date().toISOString() });
+        // Cache localStorage pour game.html
+        const cache = JSON.parse(localStorage.getItem('poko_rtp') || '{}');
+        cache[user.username] = rtp;
+        localStorage.setItem('poko_rtp', JSON.stringify(cache));
+      } catch(e) {}
+    })();
   },
 
-  // ── Koni ─────────────────────────────────
   _checkKoniExpiry(user) {
     if (!user.koniBalance || user.koniBalance <= 0) return user;
     if (!user.lastKoniActivity) return user;
     const daysSince = (Date.now() - user.lastKoniActivity) / 86400000;
-    if (daysSince >= POKO_CONFIG.koni.expiryDays) {
-      user.koniBalance = 0;
-      user.lastKoniActivity = null;
-    }
+    if (daysSince >= POKO_CONFIG.koni.expiryDays) { user.koniBalance = 0; user.lastKoniActivity = null; }
     return user;
   },
 
   earnKoni(user, depositAmount) {
     const earned = Math.floor(depositAmount / 100) * POKO_CONFIG.koni.perHundredFcfa;
-    if (earned <= 0) return user;
-    user.koniBalance = (user.koniBalance || 0) + earned;
-    user.lastKoniActivity = Date.now();
+    if (earned <= 0) return { user, earned: 0 };
+    user.koniBalance       = (user.koniBalance || 0) + earned;
+    user.lastKoniActivity  = Date.now();
     return { user, earned };
   },
 
-  async convertKoni(koniAmount) {
-    const user = this.currentUser();
-    if (!user) return { ok:false, msg:'Non connecté.' };
-    if ((user.koniBalance || 0) < POKO_CONFIG.koni.minConvert)
-      return { ok:false, msg:`Minimum ${POKO_CONFIG.koni.minConvert} Koni pour convertir.` };
-    if (koniAmount < POKO_CONFIG.koni.minConvert)
-      return { ok:false, msg:`Minimum ${POKO_CONFIG.koni.minConvert} Koni.` };
-    if (koniAmount > user.koniBalance)
-      return { ok:false, msg:'Koni insuffisants.' };
-    const fcfa = Math.floor(koniAmount * POKO_CONFIG.koni.rate);
-    if (fcfa <= 0) return { ok:false, msg:'Montant trop faible.' };
-    const now = Date.now();
-    const users = this.getUsers();
-    const u = users[user.username];
-    u.koniBalance -= koniAmount;
-    u.balance += fcfa;
-    u.lastKoniActivity = Date.now();
-    u.transactions.unshift({ id:now, type:'koni_convert', amount:fcfa, label:`⭐ Conversion ${koniAmount} Koni → ${fcfa} FCFA`, date:now, balance:u.balance });
-    this.saveUser(u);
-    return { ok:true, fcfa, koniLeft: u.koniBalance };
+  _withFreshData(user) {
+    user.level      = this.calculateLevel(user);
+    user.trustScore = this.calculateTrustScore(user);
+    user = this._checkKoniExpiry(user);
+    return user;
+  },
+
+  formatDate(ts) {
+    return new Date(ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  },
+  formatAmount(n) {
+    return (n >= 0 ? '+' : '') + Math.abs(n).toLocaleString('fr-FR') + ' FCFA';
+  },
+
+  // ── Session ──────────────────────────────
+
+  currentUser() { return _profile; },
+
+  async currentUserAsync() {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (!session) return null;
+    const { data: row } = await _supabase.from('profiles').select('*').eq('id', session.user.id).single();
+    if (!row || row.banned) return null;
+    _profile = this._withFreshData(_toUser(row));
+    _cacheUserLocally(_profile);
+    return _profile;
+  },
+
+  getSession() { return _profile ? { username: _profile.username } : null; },
+  setSession() {},
+  clearSession() { _profile = null; },
+  refreshSession() {},
+
+  _getSessionTimeout() {
+    try { const s = JSON.parse(localStorage.getItem('poko_admin_settings') || '{}'); return (s.sessionTimeout || 5) * 60 * 1000; }
+    catch(e) { return 5 * 60 * 1000; }
+  },
+
+  async logout() {
+    await _supabase.auth.signOut();
+    _profile = null;
+    window.location.href = 'index.html';
   },
 
   // ── Auth ─────────────────────────────────
+
   async register(username, password, email, avatar) {
-    const users = this.getUsers();
-    if (users[username])     return { ok:false, msg:'Ce pseudo est déjà pris.' };
     if (username.length < 3) return { ok:false, msg:'Pseudo trop court (3 car. min).' };
     if (password.length < 4) return { ok:false, msg:'Mot de passe trop court (4 car. min).' };
     const isEmail = /\S+@\S+\.\S+/.test(email);
     const isPhone = /^\+242\s?0[456789]\s?\d{3}\s?\d{2}\s?\d{2}$/.test(email.trim());
     if (!isEmail && !isPhone) return { ok:false, msg:'Email invalide ou numéro non reconnu (+242 0X XXX XX XX).' };
-    const contactNorm = email.replace(/\s/g,'');
-    const exists = Object.values(users).find(u => (u.email||'').replace(/\s/g,'') === contactNorm);
-    if (exists) return { ok:false, msg:'Ce contact est déjà utilisé.' };
-    const now = Date.now();
-    const user = {
-      username,
-      password: btoa(unescape(encodeURIComponent(password))),
-      email, avatar: avatar || '🃏',
-      createdAt:now, lastLogin:now, lastDailyBonus:null,
-      mokeStart:now,
-      level:'moke',
-      trustScore:15,  // 15% comportement (pas banni)
-      totalRecharged:0,
-      koniBalance:0, lastKoniActivity:null,
-      balance: POKO_CONFIG.welcomeBonus,
-      totalGames:0, totalWins:0,
-      longestWinStreak:0, currentStreak:0,
-      totalEarned:0, totalLost:0,
-      banned:false, vip:false,
-      history:[],
-      transactions:[{
-        id:now, type:'bonus', amount:POKO_CONFIG.welcomeBonus,
-        label:'🎁 Bonus de bienvenue', date:now, balance:POKO_CONFIG.welcomeBonus
-      }]
+
+    // Vérifier unicité du pseudo
+    const { data: taken } = await _supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+    if (taken) return { ok:false, msg:'Ce pseudo est déjà pris.' };
+
+    // Email pour Supabase Auth (convertit téléphone si besoin)
+    const authEmail = isEmail ? email : email.replace(/\s/g,'').replace('+','') + '@poko.app';
+
+    const { data: authData, error: authErr } = await _supabase.auth.signUp({ email: authEmail, password });
+    if (authErr) {
+      if (authErr.message.toLowerCase().includes('already')) return { ok:false, msg:'Ce contact est déjà utilisé.' };
+      return { ok:false, msg: authErr.message };
+    }
+
+    const now = new Date().toISOString();
+    const row = {
+      id: authData.user.id, email, username, avatar: avatar || '🃏',
+      balance: POKO_CONFIG.welcomeBonus, koni_balance: 0,
+      total_recharged: 0, total_earned: 0, total_lost: 0,
+      total_games: 0, total_wins: 0, current_streak: 0, longest_win_streak: 0,
+      level: 'moke', trust_score: 15, moke_start: now, vip: false, banned: false,
     };
-    users[username] = user;
-    this.saveUsers(users);
-    this.updatePlayerRTP(user);
-    this.setSession({ username });
+
+    const { error: profErr } = await _supabase.from('profiles').insert(row);
+    if (profErr) return { ok:false, msg:'Erreur création profil : ' + profErr.message };
+
+    // Transaction bonus bienvenue
+    await _supabase.from('transactions').insert({
+      player_id: authData.user.id, type:'bonus',
+      amount: POKO_CONFIG.welcomeBonus, label:'Bonus de bienvenue',
+      balance_after: POKO_CONFIG.welcomeBonus,
+    });
+
+    // RTP initial
+    await _supabase.from('rtp_settings').insert({ player_id: authData.user.id, rtp_value: POKO_CONFIG.levels.moke.rtp || 65, is_override: false });
+
+    const user = this._withFreshData(_toUser(row));
+    _profile = user;
+    _cacheUserLocally(user);
     return { ok:true, user };
   },
 
   async login(usernameOrContact, password) {
-    const users = this.getUsers();
-    const normalized = usernameOrContact.replace(/\s/g,'');
-    let user = users[usernameOrContact];
-    if (!user) {
-      user = Object.values(users).find(u =>
-        u.email === usernameOrContact ||
-        (u.email||'').replace(/\s/g,'') === normalized
-      );
+    const isEmail = /\S+@\S+\.\S+/.test(usernameOrContact);
+    const isPhone = /^\+242\s?0[456789]\s?\d{3}\s?\d{2}\s?\d{2}$/.test(usernameOrContact.trim());
+    let authEmail = usernameOrContact;
+
+    if (!isEmail && !isPhone) {
+      // C'est un pseudo — chercher l'email stocké
+      const { data: p } = await _supabase.from('profiles').select('email').eq('username', usernameOrContact).maybeSingle();
+      if (!p) return { ok:false, msg:'Compte introuvable.' };
+      const stored = p.email;
+      const storedIsPhone = /^\+242/.test(stored);
+      authEmail = storedIsPhone ? stored.replace(/\s/g,'').replace('+','') + '@poko.app' : stored;
+    } else if (isPhone) {
+      authEmail = usernameOrContact.replace(/\s/g,'').replace('+','') + '@poko.app';
     }
-    if (!user) return { ok:false, msg:'Compte introuvable.' };
-    if (user.password !== btoa(unescape(encodeURIComponent(password)))) return { ok:false, msg:'Mot de passe incorrect.' };
-    if (user.banned) return { ok:false, msg:'Ce compte a été suspendu.' };
-    user.lastLogin = Date.now();
-    // Recalcul automatique au login
-    user.level = this.calculateLevel(user);
-    user.trustScore = this.calculateTrustScore(user);
-    user = this._checkKoniExpiry(user);
-    this.saveUsers(users);
+
+    const { data, error } = await _supabase.auth.signInWithPassword({ email: authEmail, password });
+    if (error) {
+      if (error.message.toLowerCase().includes('invalid')) return { ok:false, msg:'Mot de passe incorrect.' };
+      return { ok:false, msg: error.message };
+    }
+
+    const { data: row } = await _supabase.from('profiles').select('*').eq('id', data.user.id).single();
+    if (!row) return { ok:false, msg:'Profil introuvable.' };
+    if (row.banned) return { ok:false, msg:'Ce compte a été suspendu. Contactez l\'administrateur.' };
+
+    const user = this._withFreshData(_toUser(row));
+    _profile = user;
+    _cacheUserLocally(user);
     this.updatePlayerRTP(user);
-    this.setSession({ username: user.username });
     return { ok:true, user };
   },
 
-  logout() { this.clearSession(); window.location.href = 'index.html'; },
+  // ── Profil ───────────────────────────────
+
+  async saveUser(user) {
+    user.level      = this.calculateLevel(user);
+    user.trustScore = this.calculateTrustScore(user);
+    await _supabase.from('profiles').update(_toDb(user)).eq('id', user.id);
+    _profile = user;
+    _cacheUserLocally(user);
+    this.updatePlayerRTP(user);
+  },
+
+  async updateProfile({ avatar, username, currentPassword, newPassword }) {
+    const user = this.currentUser();
+    if (!user) return { ok:false, msg:'Non connecté.' };
+
+    if (username && username !== user.username) {
+      if (username.length < 3) return { ok:false, msg:'Pseudo trop court (3 caractères min).' };
+      const { data: taken } = await _supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+      if (taken) return { ok:false, msg:'Ce pseudo est déjà pris.' };
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 4) return { ok:false, msg:'Mot de passe trop court (4 caractères min).' };
+      const { error } = await _supabase.auth.updateUser({ password: newPassword });
+      if (error) return { ok:false, msg: error.message };
+    }
+
+    const updates = {};
+    if (avatar)   { updates.avatar   = avatar;   user.avatar   = avatar;   }
+    if (username) { updates.username  = username; user.username = username; }
+    if (Object.keys(updates).length) {
+      await _supabase.from('profiles').update(updates).eq('id', user.id);
+    }
+
+    _profile = user;
+    _cacheUserLocally(user);
+    return { ok:true, username: user.username };
+  },
 
   // ── Wallet ───────────────────────────────
+
   async claimDailyBonus() {
     const user = this.currentUser();
     if (!user) return { ok:false };
@@ -333,50 +371,14 @@ const POKO_DB = {
     if (user.lastDailyBonus && new Date(user.lastDailyBonus).toDateString() === today)
       return { ok:false, msg:"Bonus déjà réclamé aujourd'hui." };
     const koniAmount = POKO_CONFIG.dailyBonus;
-    const users = this.getUsers();
-    const u = users[user.username];
-    u.koniBalance = (u.koniBalance || 0) + koniAmount;
-    u.lastKoniActivity = Date.now();
-    u.lastDailyBonus = Date.now();
-    u.transactions.unshift({ id:Date.now(), type:'bonus', amount:0, label:`☀️ Bonus quotidien +${koniAmount} Koni`, date:Date.now(), balance:u.balance });
-    this.saveUser(u);
+    user.koniBalance       = (user.koniBalance || 0) + koniAmount;
+    user.lastKoniActivity  = Date.now();
+    user.lastDailyBonus    = Date.now();
+    await _supabase.from('profiles').update(_toDb(user)).eq('id', user.id);
+    await _supabase.from('transactions').insert({ player_id: user.id, type:'bonus', amount:0, label:`Bonus quotidien +${koniAmount} Koni`, balance_after: user.balance });
+    _profile = user;
+    _cacheUserLocally(user);
     return { ok:true, koniAmount };
-  },
-
-  async updateProfile({ avatar, username, currentPassword, newPassword }) {
-    const user = this.currentUser();
-    if (!user) return { ok:false, msg:'Non connecté.' };
-    const users = this.getUsers();
-    const u = users[user.username];
-    if (!u) return { ok:false, msg:'Compte introuvable.' };
-
-    // Vérifier le mot de passe actuel si modification sensible
-    if (username || newPassword) {
-      const encoded = btoa(unescape(encodeURIComponent(currentPassword||'')));
-      if (u.password !== encoded) return { ok:false, msg:'Mot de passe actuel incorrect.' };
-    }
-
-    // Changer le pseudo
-    if (username && username !== user.username) {
-      if (username.length < 3) return { ok:false, msg:'Pseudo trop court (3 caractères min).' };
-      if (users[username]) return { ok:false, msg:'Ce pseudo est déjà pris.' };
-      u.username = username;
-      users[username] = u;
-      delete users[user.username];
-    }
-
-    // Changer le mot de passe
-    if (newPassword) {
-      if (newPassword.length < 4) return { ok:false, msg:'Mot de passe trop court (4 caractères min).' };
-      u.password = btoa(unescape(encodeURIComponent(newPassword)));
-    }
-
-    // Changer l'avatar
-    if (avatar) u.avatar = avatar;
-
-    this.saveUsers(users);
-    this.setSession({ username: u.username });
-    return { ok:true, username: u.username };
   },
 
   async canClaimDaily() {
@@ -389,25 +391,17 @@ const POKO_DB = {
   async deposit(amount) {
     const user = this.currentUser();
     if (!user || amount <= 0) return { ok:false, msg:'Montant invalide.' };
-    const now = Date.now();
-    const users = this.getUsers();
-    const u = users[user.username];
-    u.balance += amount;
-    u.totalRecharged = (u.totalRecharged || 0) + amount;
-    // Gain Koni
-    const { user: uWithKoni, earned: koniEarned } = this.earnKoni(u, amount);
-    Object.assign(u, uWithKoni);
-    // Recalcul niveau + trust score
-    u.level = this.calculateLevel(u);
-    u.trustScore = this.calculateTrustScore(u);
-    u.transactions.unshift({
-      id:now, type:'deposit', amount,
-      label:`💳 Dépôt${koniEarned ? ` (+${koniEarned} Koni)` : ''}`,
-      date:now, balance:u.balance
-    });
-    if (u.transactions.length > 100) u.transactions = u.transactions.slice(0,100);
-    this.saveUser(u);
-    return { ok:true, balance:u.balance, koniEarned, level:u.level, trustScore:u.trustScore };
+    user.balance          += amount;
+    user.totalRecharged    = (user.totalRecharged || 0) + amount;
+    const { user: u2, earned: koniEarned } = this.earnKoni(user, amount);
+    Object.assign(user, u2);
+    user.level      = this.calculateLevel(user);
+    user.trustScore = this.calculateTrustScore(user);
+    await _supabase.from('profiles').update(_toDb(user)).eq('id', user.id);
+    await _supabase.from('transactions').insert({ player_id: user.id, type:'recharge', amount, label:`Dépôt${koniEarned ? ` (+${koniEarned} Koni)` : ''}`, balance_after: user.balance });
+    _profile = user;
+    _cacheUserLocally(user);
+    return { ok:true, balance: user.balance, koniEarned, level: user.level, trustScore: user.trustScore };
   },
 
   async withdraw(amount) {
@@ -415,158 +409,212 @@ const POKO_DB = {
     if (!user) return { ok:false, msg:'Non connecté.' };
     if (amount <= 0) return { ok:false, msg:'Montant invalide.' };
     if (amount > user.balance) return { ok:false, msg:'Solde insuffisant.' };
-    const now = Date.now();
-    const users = this.getUsers();
-    const u = users[user.username];
-    u.balance -= amount;
-    u.transactions.unshift({ id:now, type:'withdraw', amount:-amount, label:'🏦 Retrait', date:now, balance:u.balance });
-    if (u.transactions.length > 100) u.transactions = u.transactions.slice(0,100);
-    this.saveUser(u);
-    return { ok:true, balance:u.balance };
+    user.balance -= amount;
+    await _supabase.from('profiles').update({ balance: user.balance }).eq('id', user.id);
+    await _supabase.from('transactions').insert({ player_id: user.id, type:'withdraw', amount:-amount, label:'Retrait', balance_after: user.balance });
+    _profile = user;
+    _cacheUserLocally(user);
+    return { ok:true, balance: user.balance };
   },
 
   async deductMise(mise) {
     const user = this.currentUser();
     if (!user) return { ok:false };
     if (user.balance < mise) return { ok:false, msg:`Solde insuffisant (${user.balance.toLocaleString('fr-FR')} FCFA disponible).` };
-    const users = this.getUsers();
-    users[user.username].balance -= mise;
-    this.saveUsers(users);
-    return { ok:true, balance:users[user.username].balance };
+    user.balance -= mise;
+    await _supabase.from('profiles').update({ balance: user.balance }).eq('id', user.id);
+    _profile = user;
+    return { ok:true, balance: user.balance };
   },
+
+  async convertKoni(koniAmount) {
+    const user = this.currentUser();
+    if (!user) return { ok:false, msg:'Non connecté.' };
+    if ((user.koniBalance || 0) < POKO_CONFIG.koni.minConvert) return { ok:false, msg:`Minimum ${POKO_CONFIG.koni.minConvert} Koni pour convertir.` };
+    if (koniAmount < POKO_CONFIG.koni.minConvert) return { ok:false, msg:`Minimum ${POKO_CONFIG.koni.minConvert} Koni.` };
+    if (koniAmount > user.koniBalance) return { ok:false, msg:'Koni insuffisants.' };
+    const fcfa = Math.floor(koniAmount * POKO_CONFIG.koni.rate);
+    if (fcfa <= 0) return { ok:false, msg:'Montant trop faible.' };
+    user.koniBalance -= koniAmount;
+    user.balance     += fcfa;
+    user.lastKoniActivity = Date.now();
+    await _supabase.from('profiles').update(_toDb(user)).eq('id', user.id);
+    await _supabase.from('transactions').insert({ player_id: user.id, type:'koni_convert', amount: fcfa, label:`Conversion ${koniAmount} Koni → ${fcfa} FCFA`, balance_after: user.balance });
+    _profile = user;
+    _cacheUserLocally(user);
+    return { ok:true, fcfa, koniLeft: user.koniBalance };
+  },
+
+  // ── Jeu ──────────────────────────────────
 
   async recordGame({ mise, result, stage, table }) {
     const user = this.currentUser();
     if (!user) return;
-    const now = Date.now();
-    const users = this.getUsers();
-    const u = users[user.username];
-    u.totalGames++;
     let change = 0, label = '';
+    user.totalGames++;
     if (result === 'win') {
-      change = mise * 4;
-      u.balance += change;
-      u.totalWins++;
-      u.totalEarned += change;
-      u.currentStreak++;
-      if (u.currentStreak > u.longestWinStreak) u.longestWinStreak = u.currentStreak;
-      label = `🏆 Victoire — Pot ${(mise*4).toLocaleString('fr-FR')} FCFA`;
-      u.transactions.unshift({ id:now, type:'win', amount:change, label, date:now, balance:u.balance });
+      change           = mise * 4;
+      user.balance    += change;
+      user.totalWins++;
+      user.totalEarned += change;
+      user.currentStreak++;
+      if (user.currentStreak > user.longestWinStreak) user.longestWinStreak = user.currentStreak;
+      label = `Victoire — Pot ${(mise*4).toLocaleString('fr-FR')} FCFA`;
     } else {
-      u.totalLost = (u.totalLost||0) + mise;
-      u.currentStreak = 0;
-      label = result === 'gameover' ? `💀 Éliminé — Étape ${stage}` : `❌ Défaite — Étape ${stage}`;
-      u.transactions.unshift({ id:now, type:'loss', amount:-mise, label, date:now, balance:u.balance });
+      user.totalLost    = (user.totalLost || 0) + mise;
+      user.currentStreak = 0;
+      label = result === 'gameover' ? `Éliminé — Manche ${stage}` : `Défaite — Manche ${stage}`;
     }
-    // Recalcul RTP après chaque partie
-    u.level = this.calculateLevel(u);
-    u.trustScore = this.calculateTrustScore(u);
-    const entry = { id:now, date:now, mise, result, stage, table:table||'nganda', change, balanceAfter:u.balance, label };
-    u.history.unshift(entry);
-    if (u.history.length > 50) u.history = u.history.slice(0,50);
-    if (u.transactions.length > 100) u.transactions = u.transactions.slice(0,100);
-    this.saveUser(u);
-    this.updatePlayerRTP(u); // auto-ajustement RTP après chaque partie
-    return entry;
+    user.level      = this.calculateLevel(user);
+    user.trustScore = this.calculateTrustScore(user);
+    const rtp       = this.getRTP(user);
+
+    await _supabase.from('profiles').update(_toDb(user)).eq('id', user.id);
+
+    const { data: entry } = await _supabase.from('game_history').insert({
+      player_id: user.id, mise, result, stage,
+      table_name: table || 'leki', change, balance_after: user.balance, label, rtp_applied: rtp,
+    }).select().single();
+
+    await _supabase.from('transactions').insert({
+      player_id: user.id, type: result === 'win' ? 'win' : 'loss',
+      amount: result === 'win' ? change : -mise, label, balance_after: user.balance,
+    });
+
+    _profile = user;
+    _cacheUserLocally(user);
+    this.updatePlayerRTP(user);
+    return entry ? { id: entry.id, date: new Date(entry.played_at).getTime(), mise, result, stage, table: entry.table_name, change, balanceAfter: user.balance, label } : null;
   },
 
-  // ── Caisses admin ─────────────────────────
-  getCaisses() {
-    const users = Object.values(this.getUsers());
-    const totalRecharges = users.reduce((s,u) => s + (u.totalRecharged||0), 0);
-    const totalGainsPaids = users.reduce((s,u) => s + (u.totalEarned||0), 0);
-    const marge = totalRecharges - totalGainsPaids;
-    const saved = JSON.parse(localStorage.getItem('poko_caisse') || '{}');
+  // ── Données ──────────────────────────────
+
+  async getTransactions(playerIdOrUsername) {
+    const id = await this._resolveId(playerIdOrUsername);
+    if (!id) return [];
+    const { data } = await _supabase.from('transactions').select('*').eq('player_id', id).order('created_at', { ascending:false }).limit(100);
+    return (data || []).map(t => ({ id: t.id, type: t.type, amount: t.amount, label: t.label, date: new Date(t.created_at).getTime(), balance: t.balance_after }));
+  },
+
+  async getGameHistory(playerIdOrUsername) {
+    const id = await this._resolveId(playerIdOrUsername);
+    if (!id) return [];
+    const { data } = await _supabase.from('game_history').select('*').eq('player_id', id).order('played_at', { ascending:false }).limit(50);
+    return (data || []).map(g => ({ id: g.id, date: new Date(g.played_at).getTime(), mise: g.mise, result: g.result, stage: g.stage, table: g.table_name, change: g.change, balanceAfter: g.balance_after, label: g.label }));
+  },
+
+  async getAllUsers() {
+    const { data } = await _supabase.from('profiles').select('*').order('created_at', { ascending:false });
+    return (data || []).map(r => _toUser(r));
+  },
+
+  async leaderboard() {
+    const { data } = await _supabase.from('profiles').select('username,avatar,level,total_wins,total_games,total_earned,longest_win_streak').order('total_wins', { ascending:false }).limit(20);
+    return (data || []).map(u => ({
+      username: u.username, avatar: u.avatar || '🃏',
+      level: u.level || 'moke', levelInfo: this.getLevelInfo(u.level || 'moke'),
+      totalWins: u.total_wins || 0, totalGames: u.total_games || 0,
+      totalEarned: u.total_earned || 0,
+      winRate: (u.total_games || 0) > 0 ? Math.round(((u.total_wins||0) / u.total_games) * 100) : 0,
+      longestStreak: u.longest_win_streak || 0,
+    }));
+  },
+
+  async getCaisses() {
+    const { data: users } = await _supabase.from('profiles').select('total_recharged,total_earned');
+    const totalRecharges   = (users||[]).reduce((s,u) => s + (u.total_recharged||0), 0);
+    const totalGainsPaids  = (users||[]).reduce((s,u) => s + (u.total_earned||0),    0);
+    const marge            = totalRecharges - totalGainsPaids;
     return {
-      acquisition: {
-        balance: saved.acquisition || Math.floor(marge * 0.30),
-        pct: Math.floor((saved.acquisition || Math.floor(marge * 0.30)) / Math.max(marge,1) * 100),
-        label: 'Acquisition'
-      },
-      retention: {
-        balance: saved.retention || Math.floor(marge * 0.40),
-        pct: Math.floor((saved.retention || Math.floor(marge * 0.40)) / Math.max(marge,1) * 100),
-        label: 'Rétention'
-      },
-      operations: {
-        balance: saved.operations || Math.floor(marge * 0.30),
-        pct: Math.floor((saved.operations || Math.floor(marge * 0.30)) / Math.max(marge,1) * 100),
-        label: 'Opérations'
-      },
-      totalRecharges, totalGainsPaids, marge
+      acquisition: { balance: Math.floor(marge*0.30), label:'Acquisition' },
+      retention:   { balance: Math.floor(marge*0.40), label:'Rétention'   },
+      operations:  { balance: Math.floor(marge*0.30), label:'Opérations'  },
+      totalRecharges, totalGainsPaids, marge,
     };
   },
 
-  // ── Historique / Leaderboard ─────────────
-  async getTransactions(username) {
-    return (this.getUsers()[username]?.transactions || []).slice(0,50);
+  // Compatibilité admin.html (lecture localStorage)
+  getUsers() {
+    try { return JSON.parse(localStorage.getItem('poko_users') || '{}'); } catch(e) { return {}; }
   },
-  async getGameHistory(username) {
-    return (this.getUsers()[username]?.history || []).slice(0,30);
-  },
-  async leaderboard() {
-    return Object.values(this.getUsers())
-      .map(u => ({
-        username:u.username, avatar:u.avatar||'🃏',
-        level:u.level||'moke', levelInfo:this.getLevelInfo(u.level||'moke'),
-        totalWins:u.totalWins||0, totalGames:u.totalGames||0,
-        totalEarned:u.totalEarned||0,
-        winRate:u.totalGames>0?Math.round((u.totalWins/u.totalGames)*100):0,
-        longestStreak:u.longestWinStreak||0
-      }))
-      .sort((a,b)=>b.totalWins-a.totalWins||b.winRate-a.winRate)
-      .slice(0,20);
-  },
-  async getAllUsers() { return Object.values(this.getUsers()); },
+  saveUsers() {},
 
-  // ── Formatage ────────────────────────────
-  formatDate(ts) {
-    return new Date(ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  // Helper interne
+  async _resolveId(playerIdOrUsername) {
+    if (!playerIdOrUsername) return _profile?.id || null;
+    if (/^[0-9a-f-]{36}$/i.test(playerIdOrUsername)) return playerIdOrUsername;
+    const { data } = await _supabase.from('profiles').select('id').eq('username', playerIdOrUsername).maybeSingle();
+    return data?.id || null;
   },
-  formatAmount(n) {
-    return (n>=0?'+':'')+Math.abs(n).toLocaleString('fr-FR')+' FCFA';
-  }
 };
 
 // ── Guards ──────────────────────────────────
 async function requireAuth(to) {
   to = to || 'login.html';
-  const session = POKO_DB.getSession();
+  const { data: { session } } = await _supabase.auth.getSession();
   if (!session) { window.location.href = to; return false; }
-  const users = POKO_DB.getUsers();
-  const user = users[session.username];
-  if (!user) { POKO_DB.clearSession(); window.location.href = to; return false; }
-  if (user.banned) {
-    POKO_DB.clearSession();
+  const { data: row } = await _supabase.from('profiles').select('*').eq('id', session.user.id).single();
+  if (!row) { await _supabase.auth.signOut(); window.location.href = to; return false; }
+  if (row.banned) {
+    await _supabase.auth.signOut();
     alert("Votre compte a été suspendu. Contactez l'administrateur.");
     window.location.href = to;
     return false;
   }
-  return true;
-}
-function requireGuest(to) {
-  to = to || 'index.html';
-  if (POKO_DB.getSession()) { window.location.href = to; return false; }
+  _profile = POKO_DB._withFreshData(_toUser(row));
+  _cacheUserLocally(_profile);
   return true;
 }
 
-// ── Session activity tracker ─────────────────────────────
-// Rafraîchit le timestamp de la session à chaque interaction utilisateur.
-// Déclenche aussi une vérification du timeout toutes les 30 secondes.
+function requireGuest(to) {
+  to = to || 'index.html';
+  if (_profile) { window.location.href = to; return false; }
+  return true;
+}
+
+// ── Init — restaurer la session au chargement ──
+(async () => {
+  try {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (session) {
+      const { data: row } = await _supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      if (row && !row.banned) {
+        _profile = POKO_DB._withFreshData(_toUser(row));
+        _cacheUserLocally(_profile);
+        // Charger les paramètres admin depuis Supabase
+        const { data: s } = await _supabase.from('admin_settings').select('*').eq('id',1).single();
+        if (s) {
+          if (s.rtp_moke          != null) POKO_CONFIG.levels.moke.rtp              = s.rtp_moke;
+          if (s.rtp_makala        != null) POKO_CONFIG.levels.makala.rtp            = s.rtp_makala;
+          if (s.moke_jours        != null) POKO_CONFIG.levelThresholds.moke_days    = s.moke_jours;
+          if (s.seuil_monene      != null) POKO_CONFIG.levelThresholds.monene       = s.seuil_monene;
+          if (s.seuil_koni        != null) POKO_CONFIG.levelThresholds.koni         = s.seuil_koni;
+          if (s.seuil_makala      != null) POKO_CONFIG.levelThresholds.makala       = s.seuil_makala;
+          if (s.welcome_bonus     != null) POKO_CONFIG.welcomeBonus                 = s.welcome_bonus;
+          if (s.daily_bonus       != null) POKO_CONFIG.dailyBonus                   = s.daily_bonus;
+          if (s.koni_per_100fcfa  != null) POKO_CONFIG.koni.perHundredFcfa          = s.koni_per_100fcfa;
+          if (s.koni_rate         != null) POKO_CONFIG.koni.rate                    = s.koni_rate;
+          if (s.koni_expiry_days  != null) POKO_CONFIG.koni.expiryDays              = s.koni_expiry_days;
+          if (s.koni_min_convert  != null) POKO_CONFIG.koni.minConvert              = s.koni_min_convert;
+          localStorage.setItem('poko_admin_settings', JSON.stringify({
+            rtpMoke: s.rtp_moke, rtpMakala: s.rtp_makala,
+            mokeJours: s.moke_jours, seuilMonene: s.seuil_monene,
+            seuilKoni: s.seuil_koni, seuilMakala: s.seuil_makala,
+            welcomeBonus: s.welcome_bonus, dailyBonus: s.daily_bonus,
+            sessionTimeout: s.session_timeout,
+          }));
+        }
+      }
+    }
+  } catch(e) {}
+})();
+
+// ── Suivi d'activité session ─────────────────
 (()=>{
   const authPages = ['index.html','login.html','register.html','admin-login.html'];
   const page = window.location.pathname.split('/').pop();
-  if (authPages.includes(page)) return; // pas de tracker sur les pages publiques
-
-  let _refreshThrottle = null;
-  const refresh = () => {
-    clearTimeout(_refreshThrottle);
-    _refreshThrottle = setTimeout(() => POKO_DB.refreshSession(), 500);
-  };
-  ['mousedown','mousemove','keydown','scroll','touchstart','click'].forEach(evt => {
-    document.addEventListener(evt, refresh, { passive:true });
-  });
-
-  // Vérification périodique toutes les 30 secondes
-  setInterval(() => { POKO_DB.currentUser(); }, 30000);
+  if (authPages.includes(page)) return;
+  let _t = null;
+  const refresh = () => { clearTimeout(_t); _t = setTimeout(() => { if(_profile) _supabase.auth.getSession(); }, 500); };
+  ['mousedown','mousemove','keydown','scroll','touchstart','click'].forEach(e => document.addEventListener(e, refresh, { passive:true }));
 })();
