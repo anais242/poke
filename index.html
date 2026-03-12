@@ -173,11 +173,19 @@ function renderUser(user){
   `;
 }
 
-// Afficher l'état invité immédiatement, puis mettre à jour si connecté
-renderGuest();
-POKO_DB.currentUserAsync().then(user => {
-  if(user) renderUser(user);
-});
+// Si session déjà en cache → afficher immédiatement, sinon attendre le check async
+const _cached = POKO_DB.currentUser();
+if (_cached) {
+  renderUser(_cached);
+} else {
+  // État neutre le temps que Supabase réponde (pas de flash inscription)
+  navRight.innerHTML = '';
+  btnGroup.innerHTML = '';
+  POKO_DB.currentUserAsync().then(user => {
+    if (user) renderUser(user);
+    else renderGuest();
+  });
+}
 </script>
 </body>
 </html>
