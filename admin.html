@@ -1413,6 +1413,25 @@ function showPanel(name,el){
 // ── DATA ──
 function getUsers(){ return _adminUsersCache; }
 let _adminUsersCache = [];
+let _adminTxCache = [];
+async function getAllTransactionsAsync(){
+  // Nécessite que getUsersAsync() ait été appelé avant (pour le mapping id→username)
+  const rows = await SB.get('transactions','select=*&order=created_at.desc&limit=1000');
+  if(!Array.isArray(rows)) return _adminTxCache;
+  const idToUser = {};
+  _adminUsersCache.forEach(u=>{ idToUser[u.id]=u.username; });
+  _adminTxCache = rows.map(r=>({
+    id:       r.id,
+    playerId: r.player_id,
+    username: idToUser[r.player_id] || '?',
+    type:     r.type,
+    amount:   parseFloat(r.amount)||0,
+    label:    r.label||'',
+    balance:  parseFloat(r.balance_after)||0,
+    date:     new Date(r.created_at).getTime(),
+  }));
+  return _adminTxCache;
+}
 async function getUsersAsync(){
   const rows = await SB.get('profiles','select=*');
   if(!Array.isArray(rows)) return _adminUsersCache;
@@ -1459,8 +1478,7 @@ async function renderDashboard(){
 
   // Activity feed from transactions
   const feed=document.getElementById('activityFeed');
-  const allTx=[];
-  users.forEach(u=>(u.transactions||[]).forEach(tx=>allTx.push({...tx,username:u.username})));
+  const allTx=await getAllTransactionsAsync();
   allTx.sort((a,b)=>b.date-a.date);
   document.getElementById('feedCount').textContent=allTx.length+' événements';
   feed.innerHTML=allTx.slice(0,20).map(tx=>{
@@ -2238,29 +2256,26 @@ function getCaisseState(){
 function saveCaisseState(c){ localStorage.setItem('poko_caisse',JSON.stringify(c)); }
 
 // Reconstruct caisse from all financial sources (source of truth)
-function computeCaisse(){
-  const users = getUsers();
+function computeCaisse(allTx){
+  allTx = allTx || _adminTxCache;
   let totalEncaisse=0, totalDecaisse=0, totalEmis=0, totalKoniPaid=0;
   const ledger=[];
 
   // ── Transactions joueurs ──
-  users.forEach(u=>{
-    (u.transactions||[]).forEach(tx=>{
-      if(tx.type==='loss'){
-        totalEncaisse += Math.abs(tx.amount);
-        ledger.push({ts:tx.date, user:u.username, label:tx.label, amount:Math.abs(tx.amount), dir:'in', balance:tx.balance||0, cat:'jeu'});
-      } else if(tx.type==='win'){
-        totalDecaisse += Math.abs(tx.amount);
-        ledger.push({ts:tx.date, user:u.username, label:tx.label, amount:-Math.abs(tx.amount), dir:'out', balance:tx.balance||0, cat:'jeu'});
-      } else if(tx.type==='bonus'){
-        totalEmis += Math.abs(tx.amount);
-        ledger.push({ts:tx.date, user:u.username, label:tx.label, amount:tx.amount, dir:'emit', balance:tx.balance||0, cat:'bonus'});
-      } else if(tx.type==='koni_convert'){
-        totalKoniPaid += Math.abs(tx.amount);
-        ledger.push({ts:tx.date, user:u.username, label:tx.label||'⭐ Conversion Koni', amount:-Math.abs(tx.amount), dir:'koni', balance:tx.balance||0, cat:'koni'});
-      }
-      // deposit : géré via poko_recharges (source officielle)
-    });
+  allTx.forEach(tx=>{
+    if(tx.type==='loss'||tx.type==='gameover'){
+      totalEncaisse += Math.abs(tx.amount);
+      ledger.push({ts:tx.date, user:tx.username, label:tx.label, amount:Math.abs(tx.amount), dir:'in', balance:tx.balance||0, cat:'jeu'});
+    } else if(tx.type==='win'){
+      totalDecaisse += Math.abs(tx.amount);
+      ledger.push({ts:tx.date, user:tx.username, label:tx.label, amount:-Math.abs(tx.amount), dir:'out', balance:tx.balance||0, cat:'jeu'});
+    } else if(tx.type==='bonus'){
+      totalEmis += Math.abs(tx.amount);
+      ledger.push({ts:tx.date, user:tx.username, label:tx.label, amount:tx.amount, dir:'emit', balance:tx.balance||0, cat:'bonus'});
+    } else if(tx.type==='koni_convert'){
+      totalKoniPaid += Math.abs(tx.amount);
+      ledger.push({ts:tx.date, user:tx.username, label:tx.label||'⭐ Conversion Koni', amount:-Math.abs(tx.amount), dir:'koni', balance:tx.balance||0, cat:'koni'});
+    }
   });
 
   // ── Recharges approuvées (argent réel entré) ──
@@ -2292,7 +2307,8 @@ let cfDays = 0; // 0 = all
 
 async function renderCaisse(){
   await getUsersAsync();
-  const c = computeCaisse();
+  const allTx = await getAllTransactionsAsync();
+  const c = computeCaisse(allTx);
   const users = getUsers();
 
   // Hero
@@ -2528,7 +2544,7 @@ function setCFPeriod(days, btn){
   document.querySelectorAll('#cf7,#cf30,#cfAll').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('cfPeriod').textContent = days===7?'7 DERNIERS JOURS':days===30?'30 DERNIERS JOURS':'TOUT';
-  const c = computeCaisse();
+  const c = computeCaisse(_adminTxCache);
   renderCashFlow(c.ledger);
 }
 
